@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  CASH
+  CHECKING
+  SAVINGS
+  CREDIT
+}
+
+model Account {
+  id           String      @id @default(cuid())
+  name         String
+  type         AccountType
+  // signed: assets positive, credit-card debt negative
+  balanceCents Int         @default(0)
+  color        String?
+  sortOrder    Int         @default(0)
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model MonthPlan {
+  id             String  @id @default(cuid())
+  // "YYYY-MM"
+  month          String  @unique
+  salaryCents    Int     @default(0)
+  salaryReceived Boolean @default(false)
+  savingsCents   Int     @default(0)
+}
+
+enum BillFrequency {
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+model Bill {
+  id             String        @id @default(cuid())
+  name           String
+  amountCents    Int
+  shared         Boolean       @default(false)
+  // expected payback from the other party; only meaningful when shared
+  reimburseCents Int           @default(0)
+  frequency      BillFrequency @default(MONTHLY)
+  // day of month, 1-31. MONTHLY and YEARLY only; ignored for WEEKLY
+  dueDay         Int
+  // 1-12, YEARLY bills only
+  dueMonth       Int?
+  // 0 = Sunday .. 6 = Saturday, WEEKLY bills only
+  dueWeekday     Int?
+  color          String?
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  occurrences    BillOccurrence[]
+}
+
+// One row per actual charge. A monthly bill has one per month, a weekly bill
+// has four or five — which is why status is keyed by date rather than month.
+model BillOccurrence {
+  id     String  @id @default(cuid())
+  bill   Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  billId String
+  // the date this specific charge falls on, "YYYY-MM-DD"
+  date   String
+  // charge has landed on the card (so it's already inside the CC balance)
+  hit    Boolean @default(false)
+  // reimbursed by the other party (shared bills only)
+  paid   Boolean @default(false)
+
+  @@unique([billId, date])
+  @@index([date])
+}
+
+model ExtraIncome {
+  id            String @id @default(cuid())
+  // "YYYY-MM"
+  month         String
+  source        String
+  expectedCents Int
+  receivedCents Int    @default(0)
+}
+
+model PiggyBucket {
+  id             String    @id @default(cuid())
+  name           String
+  // "YYYY-MM-DD"; day the current principal started amortizing
+  startDate      String
+  // signed effective start value (the sheet's "Offset"):
+  //   positive = money granted back to the budget, released down to target
+  //   negative = money siphoned aside from the budget
+  principalCents Int
+  // signed daily change applied to the value
+  ratePerDayCents Int
+  // value at which the bucket completes; null = perpetual
+  targetCents    Int?
+  // the original full amount (the sheet's "Start"), for progress display
+  originalCents  Int?
+  archived       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+}

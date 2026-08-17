@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+:root {
+  /* MoneyMotion brand palette — exact values from the brand sheet.
+     Single committed dark look: Forest Green on Deep Navy. */
+  --bg: #0b1220; /* Deep Navy */
+  --surface: #111a2e; /* Navy Blue */
+  --surface-2: #1e2a3b; /* Slate */
+  /* borders sit between Navy Blue and Slate; not brand colors themselves */
+  --line: #1b2437;
+  --line-2: #27354a;
+
+  --ink: #f4f6f8; /* Off White */
+  --ink-1: #e5e9f0; /* Light Gray */
+  --ink-2: #aab6c2; /* Cool Gray */
+  --ink-3: #8fa3b8; /* Steel Blue */
+
+  --forest: #1e7a3c; /* Forest Green */
+  --lime: #7ed957; /* Lime Green */
+  --accent: #c6ff5e; /* Accent Lime */
+  --green: #2ea052; /* mid-step between Forest and Lime */
+
+  --pos: #7ed957;
+  --neg: #f87171;
+  --warn: #fbbf24;
+  --info: #38bdf8;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ink: var(--ink);
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-forest: var(--forest);
+  --color-green: var(--green);
+  --color-lime: var(--lime);
+  --color-accent: var(--accent);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface p-5;
+  }
+  .card-title {
+    @apply mb-4 flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em] text-ink-2 uppercase;
+  }
+  .input {
+    @apply w-full rounded-lg border border-line-2 bg-bg px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-lime;
+  }
+  .btn {
+    @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line-2 bg-surface-2 px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-lime/50;
+  }
+  .btn-primary {
+    @apply border-transparent bg-gradient-to-r from-forest to-lime font-semibold text-[#08130a] hover:opacity-90 hover:border-transparent;
+  }
+  .btn-danger {
+    @apply text-neg hover:border-neg/60;
+  }
+  .table-base {
+    @apply w-full text-sm;
+  }
+  .table-base th {
+    @apply border-b border-line pb-2 text-left text-[11px] font-semibold tracking-wider text-ink-3 uppercase;
+  }
+  .table-base td {
+    @apply border-b border-line/60 py-2.5 pr-3 align-middle;
+  }
+  .table-base tr:last-child td {
+    @apply border-b-0;
+  }
+}

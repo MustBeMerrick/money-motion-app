@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Local SQLite database + backups
+data/*.sqlite
+data/*.sqlite-journal
+data/*.sqlite.backup-*
+
+# Prisma generated client lives in node_modules (nothing to ignore here)
