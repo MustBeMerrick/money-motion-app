@@ -158,7 +158,6 @@ export async function deleteBill(id: string) {
 
 const extraIncomeSchema = z.object({
   id: z.string().optional(),
-  month: isoMonth,
   source: z.string().trim().min(1),
   expected: cents,
   received: optionalCents,
@@ -167,7 +166,6 @@ const extraIncomeSchema = z.object({
 export async function saveExtraIncome(formData: FormData) {
   const f = extraIncomeSchema.parse(fields(formData));
   const data = {
-    month: f.month,
     source: f.source,
     expectedCents: f.expected,
     receivedCents: f.received ?? 0,
@@ -175,13 +173,24 @@ export async function saveExtraIncome(formData: FormData) {
   if (f.id) {
     await prisma.extraIncome.update({ where: { id: f.id }, data });
   } else {
-    await prisma.extraIncome.create({ data });
+    // new rows go to the end of the current order
+    const last = await prisma.extraIncome.aggregate({ _max: { sortOrder: true } });
+    await prisma.extraIncome.create({ data: { ...data, sortOrder: (last._max.sortOrder ?? 0) + 1 } });
   }
   refresh();
 }
 
 export async function deleteExtraIncome(id: string) {
   await prisma.extraIncome.delete({ where: { id } });
+  refresh();
+}
+
+export async function reorderExtraIncome(orderedIds: string[]) {
+  await prisma.$transaction(
+    orderedIds.map((id, sortOrder) =>
+      prisma.extraIncome.update({ where: { id }, data: { sortOrder } }),
+    ),
+  );
   refresh();
 }
 
@@ -216,6 +225,18 @@ export async function saveBucket(formData: FormData) {
   refresh();
 }
 
+// Nudges the bucket's whole trajectory up/down by deltaCents — since
+// current = principal + ratePerDay * daysSinceStart, adjusting principal by
+// a flat amount shifts today's (and every future) value by exactly that
+// amount without touching the rate or start date.
+export async function adjustBucketPrincipal(id: string, deltaCents: number) {
+  await prisma.piggyBucket.update({
+    where: { id },
+    data: { principalCents: { increment: deltaCents } },
+  });
+  refresh();
+}
+
 export async function setBucketArchived(id: string, archived: boolean) {
   await prisma.piggyBucket.update({ where: { id }, data: { archived } });
   refresh();
@@ -230,35 +251,35 @@ export async function deleteBucket(id: string) {
 
 const monthPlanSchema = z.object({
   month: isoMonth,
-  salary: cents,
-  salaryReceived: checkbox,
+  salaryMid: cents,
+  salaryMidReceived: checkbox,
+  salaryEnd: cents,
+  salaryEndReceived: checkbox,
   savings: cents,
 });
 
 export async function saveMonthPlan(formData: FormData) {
   const f = monthPlanSchema.parse(fields(formData));
+  const data = {
+    salaryMidCents: f.salaryMid,
+    salaryMidReceived: f.salaryMidReceived,
+    salaryEndCents: f.salaryEnd,
+    salaryEndReceived: f.salaryEndReceived,
+    savingsCents: f.savings,
+  };
   await prisma.monthPlan.upsert({
     where: { month: f.month },
-    create: {
-      month: f.month,
-      salaryCents: f.salary,
-      salaryReceived: f.salaryReceived,
-      savingsCents: f.savings,
-    },
-    update: {
-      salaryCents: f.salary,
-      salaryReceived: f.salaryReceived,
-      savingsCents: f.savings,
-    },
+    create: { month: f.month, ...data },
+    update: data,
   });
   refresh();
 }
 
-export async function setSalaryReceived(month: string, received: boolean) {
+export async function setSalaryReceived(month: string, which: "mid" | "end", received: boolean) {
   isoMonth.parse(month);
   await prisma.monthPlan.update({
     where: { month },
-    data: { salaryReceived: received },
+    data: which === "mid" ? { salaryMidReceived: received } : { salaryEndReceived: received },
   });
   refresh();
 }

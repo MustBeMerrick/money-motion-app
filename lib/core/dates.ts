@@ -51,6 +51,27 @@ export function daysLeftInMonth(date: IsoDate): number {
   return daysInMonth(monthOf(date)) - dayOfMonth(date) + 1;
 }
 
+function dayOfWeek(date: IsoDate): number {
+  return new Date(toUtcMs(date)).getUTCDay();
+}
+
+// Payroll convention: if a scheduled date lands on a weekend, pay lands the
+// prior business day instead.
+export function prevWeekday(date: IsoDate): IsoDate {
+  let d = date;
+  while (dayOfWeek(d) === 0 || dayOfWeek(d) === 6) d = addDays(d, -1);
+  return d;
+}
+
+// Semi-monthly payroll: paid on the 15th and the last day of the month,
+// pulled back to the prior weekday whenever either lands on a weekend.
+export function semiMonthlyPayDates(month: IsoMonth): { mid: IsoDate; end: IsoDate } {
+  return {
+    mid: prevWeekday(`${month}-15`),
+    end: prevWeekday(lastDayOfMonth(month)),
+  };
+}
+
 export function addMonths(month: IsoMonth, delta: number): IsoMonth {
   const [y, m] = month.split("-").map(Number);
   const total = y * 12 + (m - 1) + delta;

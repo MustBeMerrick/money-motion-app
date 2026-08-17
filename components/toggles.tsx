@@ -129,17 +129,19 @@ export function OccurrenceChips({
 
 export function SalaryReceivedToggle({
   month,
+  which,
   received,
 }: {
   month: string;
+  which: "mid" | "end";
   received: boolean;
 }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <CheckBox
         checked={received}
-        label="Salary received"
-        onToggle={(next) => setSalaryReceived(month, next)}
+        label={`${which === "mid" ? "Mid-month" : "End-of-month"} salary received`}
+        onToggle={(next) => setSalaryReceived(month, which, next)}
       />
       <span className="text-[11px] text-ink-3">received</span>
     </span>

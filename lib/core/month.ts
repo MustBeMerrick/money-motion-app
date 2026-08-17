@@ -1,4 +1,5 @@
 import {
+  addDays,
   countWeekdayInMonth,
   daysInMonth,
   daysLeftInMonth,
@@ -48,8 +49,10 @@ export interface ExtraIncomeInput {
 }
 
 export interface PlanInput {
-  salaryCents: number;
-  salaryReceived: boolean;
+  salaryMidCents: number;
+  salaryMidReceived: boolean;
+  salaryEndCents: number;
+  salaryEndReceived: boolean;
   savingsCents: number;
 }
 
@@ -78,15 +81,23 @@ export interface MonthSnapshot {
   recurringTotalCents: number;
   recurringHitCents: number;
   recurringRemainingCents: number;
+  // what's still coming out of pocket: unhit charges only, and for shared
+  // bills just your share (amount minus the other party's reimbursement)
+  recurringOutOfPocketRemainingCents: number;
 
   piggyNetCents: number;
 
   plannedIncomeCents: number;
+  // signed (negative): credit card debt plus what's still owed out of pocket
+  // this month, minus the savings target
   plannedExpensesCents: number;
   plannedNetCents: number;
 
   availableCents: number;
   dailyBudgetCents: number;
+  // what dailyBudgetCents becomes once today falls off — null on the last
+  // day of the month, when there's no "tomorrow" left to divide by
+  tomorrowBudgetCents: number | null;
 }
 
 // What you actually pay for one occurrence, once the other party settles up.
@@ -187,13 +198,21 @@ export function monthSnapshot(input: SnapshotInput): MonthSnapshot {
   );
   const recurringRemainingCents = recurringTotalCents - recurringHitCents;
 
+  const recurringOutOfPocketRemainingCents = bills.reduce(
+    (sum, b) =>
+      sum + (b.shared ? billOutOfPocketCents(b) : b.amountCents) * countWhere(b, (o) => !o.hit),
+    0,
+  );
+
   const pendingReimburseCents = bills.reduce(
     (sum, b) =>
       b.shared ? sum + b.reimburseCents * countWhere(b, (o) => o.hit && !o.paid) : sum,
     0,
   );
 
-  const salaryOutstandingCents = plan.salaryReceived ? 0 : plan.salaryCents;
+  const salaryOutstandingCents =
+    (plan.salaryMidReceived ? 0 : plan.salaryMidCents) +
+    (plan.salaryEndReceived ? 0 : plan.salaryEndCents);
   const extraOutstandingCents = extras.reduce(
     (sum, e) => sum + Math.max(e.expectedCents - e.receivedCents, 0),
     0,
@@ -205,14 +224,14 @@ export function monthSnapshot(input: SnapshotInput): MonthSnapshot {
   );
 
   const plannedIncomeCents =
-    plan.salaryCents +
+    liquidCents +
+    salaryOutstandingCents +
     extras.reduce((sum, e) => sum + Math.max(e.expectedCents, e.receivedCents), 0) +
-    bills.reduce(
-      (sum, b) => (b.shared ? sum + b.reimburseCents * b.occurrences.length : sum),
-      0,
-    );
-  const plannedExpensesCents = recurringTotalCents + plan.savingsCents;
-  const plannedNetCents = plannedIncomeCents - plannedExpensesCents;
+    pendingReimburseCents;
+  const plannedExpensesCents = ccNetCents - recurringOutOfPocketRemainingCents - plan.savingsCents;
+  // literally Income + Expenses + Virtual Adjustments, the three lines shown
+  // above it on the dashboard
+  const plannedNetCents = plannedIncomeCents + plannedExpensesCents + piggyNetCents;
 
   const availableCents =
     liquidCents +
@@ -224,7 +243,16 @@ export function monthSnapshot(input: SnapshotInput): MonthSnapshot {
     plan.savingsCents +
     piggyNetCents;
 
-  const dailyBudgetCents = Math.floor(availableCents / daysLeft);
+  const dailyBudgetCents = Math.floor(plannedNetCents / daysLeft);
+  // buckets keep dripping overnight, so tomorrow's net swaps today's piggy
+  // value for tomorrow's — equivalent to subtracting each bucket's rate/day,
+  // except a bucket already clamped at its target stops moving
+  const piggyNetCentsTomorrow = buckets.reduce(
+    (sum, b) => sum + bucketValueOn(b, addDays(today, 1)),
+    0,
+  );
+  const tomorrowNetCents = plannedNetCents - piggyNetCents + piggyNetCentsTomorrow;
+  const tomorrowBudgetCents = daysLeft > 1 ? Math.floor(tomorrowNetCents / (daysLeft - 1)) : null;
 
   return {
     month,
@@ -239,12 +267,14 @@ export function monthSnapshot(input: SnapshotInput): MonthSnapshot {
     recurringTotalCents,
     recurringHitCents,
     recurringRemainingCents,
+    recurringOutOfPocketRemainingCents,
     piggyNetCents,
     plannedIncomeCents,
     plannedExpensesCents,
     plannedNetCents,
     availableCents,
     dailyBudgetCents,
+    tomorrowBudgetCents,
   };
 }
 

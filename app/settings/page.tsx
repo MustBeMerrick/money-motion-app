@@ -16,11 +16,11 @@ export default async function SettingsPage() {
       <form action={saveMonthPlan} className="card flex flex-col gap-4">
         <input type="hidden" name="month" value={month} />
         <label className="block">
-          <span className="mb-1 block text-xs font-medium text-ink-2">Salary ($ / month)</span>
+          <span className="mb-1 block text-xs font-medium text-ink-2">Mid-month salary ($)</span>
           <input
-            name="salary"
+            name="salaryMid"
             required
-            defaultValue={(plan.salaryCents / 100).toFixed(2)}
+            defaultValue={(plan.salaryMidCents / 100).toFixed(2)}
             className="input"
             inputMode="decimal"
           />
@@ -28,11 +28,30 @@ export default async function SettingsPage() {
         <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
           <input
             type="checkbox"
-            name="salaryReceived"
-            defaultChecked={plan.salaryReceived}
+            name="salaryMidReceived"
+            defaultChecked={plan.salaryMidReceived}
             className="h-4 w-4 accent-[#7ED957]"
           />
-          Salary already received (it&apos;s sitting in checking, so don&apos;t count it again)
+          Mid-month salary already received
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-ink-2">End-of-month salary ($)</span>
+          <input
+            name="salaryEnd"
+            required
+            defaultValue={(plan.salaryEndCents / 100).toFixed(2)}
+            className="input"
+            inputMode="decimal"
+          />
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
+          <input
+            type="checkbox"
+            name="salaryEndReceived"
+            defaultChecked={plan.salaryEndReceived}
+            className="h-4 w-4 accent-[#7ED957]"
+          />
+          End-of-month salary already received
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-ink-2">Monthly savings target ($)</span>

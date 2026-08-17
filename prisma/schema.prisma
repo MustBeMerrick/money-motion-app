@@ -28,12 +28,16 @@ model Account {
 }
 
 model MonthPlan {
-  id             String  @id @default(cuid())
+  id     String @id @default(cuid())
   // "YYYY-MM"
-  month          String  @unique
-  salaryCents    Int     @default(0)
-  salaryReceived Boolean @default(false)
-  savingsCents   Int     @default(0)
+  month  String @unique
+  // paid semi-monthly: mid-month (the 15th, or prior weekday) and
+  // end-of-month (last day, or prior weekday) — see semiMonthlyPayDates()
+  salaryMidCents    Int     @default(0)
+  salaryMidReceived Boolean @default(false)
+  salaryEndCents    Int     @default(0)
+  salaryEndReceived Boolean @default(false)
+  savingsCents      Int     @default(0)
 }
 
 enum BillFrequency {
@@ -79,13 +83,15 @@ model BillOccurrence {
   @@index([date])
 }
 
+// Persists until manually removed (not tied to a month) — e.g. an expected
+// reimbursement or one-off payment you're waiting on.
 model ExtraIncome {
-  id            String @id @default(cuid())
-  // "YYYY-MM"
-  month         String
+  id            String   @id @default(cuid())
   source        String
   expectedCents Int
-  receivedCents Int    @default(0)
+  receivedCents Int      @default(0)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
 }
 
 model PiggyBucket {

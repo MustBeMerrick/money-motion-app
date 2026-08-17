@@ -78,14 +78,21 @@ async function main() {
   }
 
   await prisma.monthPlan.create({
-    data: { month, salaryCents: 520_000, salaryReceived: false, savingsCents: 100_000 },
+    data: {
+      month,
+      salaryMidCents: 260_000,
+      salaryMidReceived: false,
+      salaryEndCents: 260_000,
+      salaryEndReceived: false,
+      savingsCents: 100_000,
+    },
   });
 
   await prisma.extraIncome.createMany({
     data: [
-      { month, source: "Tax Return", expectedCents: 12_000, receivedCents: 0 },
-      { month, source: "Sell Old Monitor", expectedCents: 7_500, receivedCents: 3_500 },
-      { month, source: "Cashback Bonus", expectedCents: 2_500, receivedCents: 2_500 },
+      { source: "Tax Return", expectedCents: 12_000, receivedCents: 0 },
+      { source: "Sell Old Monitor", expectedCents: 7_500, receivedCents: 3_500 },
+      { source: "Cashback Bonus", expectedCents: 2_500, receivedCents: 2_500 },
     ],
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, addMonths, daysBetween, daysInMonth, daysLeftInMonth, lastDayOfMonth } from "./dates";
+import { addDays, addMonths, daysBetween, daysInMonth, daysLeftInMonth, lastDayOfMonth, semiMonthlyPayDates } from "./dates";
 import { bucketCompletionDate, bucketDaysLeft, bucketProgress, bucketRemaining, bucketValueOn, type BucketLike } from "./piggy";
 import {
   billDueInMonth,
@@ -58,6 +58,13 @@ describe("dates", () => {
     expect(daysLeftInMonth(TODAY)).toBe(16);
     expect(daysLeftInMonth("2026-08-31")).toBe(1);
     expect(daysLeftInMonth("2026-08-01")).toBe(31);
+  });
+
+  it("semi-monthly pay dates pull back off weekends", () => {
+    // Aug 15 2026 is a Saturday, so pay lands Friday the 14th
+    expect(semiMonthlyPayDates("2026-08")).toEqual({ mid: "2026-08-14", end: "2026-08-31" });
+    // Sept 15 and 30 both land on weekdays already
+    expect(semiMonthlyPayDates("2026-09")).toEqual({ mid: "2026-09-15", end: "2026-09-30" });
   });
 });
 
@@ -215,7 +222,13 @@ describe("month snapshot", () => {
       { type: "CHECKING" as const, balanceCents: 352_018 },
       { type: "CREDIT" as const, balanceCents: -113_400 },
     ],
-    plan: { salaryCents: 520_000, salaryReceived: false, savingsCents: 100_000 },
+    plan: {
+      salaryMidCents: 260_000,
+      salaryMidReceived: false,
+      salaryEndCents: 260_000,
+      salaryEndReceived: false,
+      savingsCents: 100_000,
+    },
     bills: [
       // shared, already hit, not yet reimbursed
       { amountCents: 9_900, shared: true, reimburseCents: 9_900, occurrences: [occ("2026-08-06", true, false)] },
@@ -242,14 +255,56 @@ describe("month snapshot", () => {
     expect(s.salaryOutstandingCents).toBe(520_000);
     expect(s.extraOutstandingCents).toBe(17_000);
     expect(s.pendingReimburseCents).toBe(9_900);
+    // cash & checking on hand (372,018) + salary still outstanding, i.e. not
+    // yet received (520,000) + extras counted at the higher of
+    // expected/received (20,500) + only the reimbursements actually owed
+    // back so far (9,900)
+    expect(s.plannedIncomeCents).toBe(372_018 + 520_000 + 20_500 + 9_900);
     expect(s.recurringTotalCents).toBe(41_100);
     expect(s.recurringHitCents).toBe(9_900);
     expect(s.recurringRemainingCents).toBe(31_200);
+    // only unhit charges, and only your share of the shared one still unhit
+    // (26,700 - 13,350 reimbursed) plus the full non-shared one (4,500)
+    expect(s.recurringOutOfPocketRemainingCents).toBe(13_350 + 4_500);
     expect(s.piggyNetCents).toBe(113_400 - 28_800);
+    // signed: credit cards (-113,400) minus out-of-pocket remaining (17,850)
+    // minus the savings target (100,000)
+    expect(s.plannedExpensesCents).toBe(-113_400 - 17_850 - 100_000);
+    // literally income + expenses + virtual adjustments, the three lines
+    // shown above Net on the dashboard
+    expect(s.plannedNetCents).toBe(
+      s.plannedIncomeCents + s.plannedExpensesCents + s.piggyNetCents,
+    );
     expect(s.availableCents).toBe(
       372_018 - 113_400 + 520_000 + 17_000 + 9_900 - 31_200 - 100_000 + 84_600,
     );
-    expect(s.dailyBudgetCents).toBe(Math.floor(s.availableCents / 16));
+    expect(s.dailyBudgetCents).toBe(Math.floor(s.plannedNetCents / 16));
+    // ring and clothes both drip at their full rate/day tomorrow (neither is
+    // clamped at its target yet): -1,400 + -100 = -1,500 off net
+    expect(s.tomorrowBudgetCents).toBe(Math.floor((s.plannedNetCents - 1_500) / 15));
+  });
+
+  it("no tomorrow budget on the last day of the month", () => {
+    const s = monthSnapshot({ ...base, today: "2026-08-31" });
+    expect(s.daysLeft).toBe(1);
+    expect(s.tomorrowBudgetCents).toBeNull();
+  });
+
+  it("a bucket completing overnight stops dripping, so tomorrow's budget isn't overcharged", () => {
+    // today (day 1): 100 - 80 = 20; naively tomorrow would be -60, but it
+    // clamps at the target of 0 instead
+    const almostDone: BucketLike = {
+      startDate: "2026-08-15",
+      principalCents: 100,
+      ratePerDayCents: -80,
+      targetCents: 0,
+    };
+    const s = monthSnapshot({ ...base, buckets: [almostDone] });
+    expect(bucketValueOn(almostDone, TODAY)).toBe(20);
+    const naiveTomorrowNet = s.plannedNetCents - 80;
+    const clampedTomorrowNet = s.plannedNetCents - 20;
+    expect(s.tomorrowBudgetCents).toBe(Math.floor(clampedTomorrowNet / 15));
+    expect(s.tomorrowBudgetCents).not.toBe(Math.floor(naiveTomorrowNet / 15));
   });
 
   it("marking a bill hit stops double-counting it against available", () => {
@@ -327,10 +382,13 @@ describe("month snapshot", () => {
   it("salary received moves out of outstanding", () => {
     const after = monthSnapshot({
       ...base,
-      plan: { ...base.plan, salaryReceived: true },
+      plan: { ...base.plan, salaryMidReceived: true, salaryEndReceived: true },
     });
     expect(after.salaryOutstandingCents).toBe(0);
     expect(after.availableCents).toBe(monthSnapshot(base).availableCents - 520_000);
+    // received paychecks already sit in cash/checking (liquidCents), so
+    // counting them again in Total Income would double them up
+    expect(after.plannedIncomeCents).toBe(monthSnapshot(base).plannedIncomeCents - 520_000);
   });
 
   it("out of pocket is amount minus reimbursement", () => {

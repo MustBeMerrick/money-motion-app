@@ -39,7 +39,8 @@ export async function getOrCreateMonthPlan(month: IsoMonth): Promise<MonthPlan> 
     update: {},
     create: {
       month,
-      salaryCents: previous?.salaryCents ?? 0,
+      salaryMidCents: previous?.salaryMidCents ?? 0,
+      salaryEndCents: previous?.salaryEndCents ?? 0,
       savingsCents: previous?.savingsCents ?? 0,
     },
   });
@@ -80,7 +81,7 @@ export async function getDashboardData(today: IsoDate = todayIso()): Promise<Das
     }),
     getOrCreateMonthPlan(month),
     getBillsWithStatus(month),
-    prisma.extraIncome.findMany({ where: { month }, orderBy: { source: "asc" } }),
+    prisma.extraIncome.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
     prisma.piggyBucket.findMany({ where: { archived: false }, orderBy: { createdAt: "asc" } }),
   ]);
 

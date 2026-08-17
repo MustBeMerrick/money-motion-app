@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { BadgeDollarSign, Handshake, PiggyBank, UserRound } from "lucide-react";
 import { getDashboardData, type BillWithStatus } from "@/lib/data";
-import { WEEKDAY_SHORT, daysInMonth, monthLabel, shortDateLabel, type IsoMonth } from "@/lib/core/dates";
-import { billMonthlyCostCents, billOccurrencesInMonth, extraIncomeStatus } from "@/lib/core/month";
+import { WEEKDAY_SHORT, daysInMonth, monthLabel, semiMonthlyPayDates, shortDateLabel, type IsoMonth } from "@/lib/core/dates";
+import { billMonthlyCostCents, billOccurrencesInMonth } from "@/lib/core/month";
 import {
   bucketCompletionDate,
   bucketDaysLeft,
@@ -16,6 +16,7 @@ import { SalaryReceivedToggle } from "@/components/toggles";
 import { StatusCell } from "@/components/bill-tables";
 import { EditableBalance } from "@/components/editable-balance";
 import { ExtraIncomeForm } from "@/components/forms";
+import { ExtraIncomeTable } from "@/components/extra-income-table";
 
 export const dynamic = "force-dynamic";
 
@@ -41,10 +42,14 @@ export default async function Dashboard() {
 
   const liquidAccounts = accounts.filter((a) => a.type !== "CREDIT");
   const creditAccounts = accounts.filter((a) => a.type === "CREDIT");
-  const sharedBills = bills.filter((b) => b.shared);
-  const soloBills = bills.filter((b) => !b.shared);
+  // dueDay isn't meaningful for weekly bills, so sort by each bill's actual
+  // first charge date this month rather than the raw stored field
+  const byDueDate = (a: BillWithStatus, b: BillWithStatus) =>
+    (a.occurrences[0]?.date ?? "").localeCompare(b.occurrences[0]?.date ?? "");
+  const sharedBills = bills.filter((b) => b.shared).sort(byDueDate);
+  const soloBills = bills.filter((b) => !b.shared).sort(byDueDate);
   const hitFraction = s.recurringTotalCents > 0 ? s.recurringHitCents / s.recurringTotalCents : 0;
-  const totalExpensesCents = s.ccNetCents - s.recurringTotalCents - plan.savingsCents;
+  const payDates = semiMonthlyPayDates(month);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -69,7 +74,11 @@ export default async function Dashboard() {
             </div>
             <div className="flex justify-between">
               <span className="text-ink-2">Expenses</span>
-              <Money cents={-s.plannedExpensesCents} tone="neg" />
+              <Money cents={s.plannedExpensesCents} tone="neg" />
+            </div>
+            <div className="flex justify-between">
+              <span className="text-ink-2">Virtual Adjustments</span>
+              <Money cents={s.piggyNetCents} signed tone="plain" />
             </div>
             <div className="mt-1.5 flex justify-between border-t border-line pt-2">
               <span className="font-semibold">Net</span>
@@ -92,11 +101,18 @@ export default async function Dashboard() {
 
         <section className="card bg-gradient-to-br from-surface to-forest/20">
           <h2 className="card-title">Daily Budget</h2>
-          <div className="text-3xl font-bold text-accent tabular-nums">
-            {formatCents(s.dailyBudgetCents)}
+          <div className="flex items-baseline gap-2">
+            <div className="text-3xl font-bold text-accent tabular-nums">
+              {formatCents(s.dailyBudgetCents)}
+            </div>
+            {s.tomorrowBudgetCents !== null && (
+              <div className="text-base font-semibold text-ink-3 tabular-nums" title="Tomorrow's daily budget">
+                {formatCents(s.tomorrowBudgetCents)}
+              </div>
+            )}
           </div>
           <p className="mt-2 text-xs text-ink-2">
-            Available to spend / day · <Money cents={s.availableCents} tone="plain" className="text-xs" /> left
+            Available to spend / day · <Money cents={s.plannedNetCents} tone="plain" className="text-xs" /> left
           </p>
         </section>
 
@@ -138,17 +154,24 @@ export default async function Dashboard() {
             <div className="my-1 border-t border-line" />
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-ink-2">
-                Salary
-                <SalaryReceivedToggle month={month} received={plan.salaryReceived} />
+                Salary ({shortDateLabel(payDates.mid)})
+                <SalaryReceivedToggle month={month} which="mid" received={plan.salaryMidReceived} />
               </span>
-              <Money cents={plan.salaryCents} tone={plan.salaryReceived ? "muted" : "plain"} />
+              <Money cents={plan.salaryMidCents} tone={plan.salaryMidReceived ? "muted" : "plain"} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-ink-2">
+                Salary ({shortDateLabel(payDates.end)})
+                <SalaryReceivedToggle month={month} which="end" received={plan.salaryEndReceived} />
+              </span>
+              <Money cents={plan.salaryEndCents} tone={plan.salaryEndReceived ? "muted" : "plain"} />
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-2">Extra Income (outstanding)</span>
+              <span className="text-ink-2">Extra Income</span>
               <Money cents={s.extraOutstandingCents} tone="plain" />
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-2">Reimbursements (Pending)</span>
+              <span className="text-ink-2">Reimbursements</span>
               <Money cents={s.pendingReimburseCents} tone="plain" />
             </div>
             <div className="mt-1.5 flex justify-between border-t border-line pt-2">
@@ -178,16 +201,16 @@ export default async function Dashboard() {
               <Money cents={s.ccNetCents} />
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-2">Recurring (This Month)</span>
-              <Money cents={-s.recurringTotalCents} tone="neg" />
+              <span className="text-ink-2">Recurring</span>
+              <Money cents={-s.recurringOutOfPocketRemainingCents} tone="neg" />
             </div>
             <div className="flex justify-between">
-              <span className="text-ink-2">Savings (Monthly)</span>
+              <span className="text-ink-2">Savings</span>
               <Money cents={-plan.savingsCents} tone="neg" />
             </div>
             <div className="mt-1.5 flex justify-between border-t border-line pt-2">
               <span className="font-semibold">Total Expenses</span>
-              <Money cents={totalExpensesCents} />
+              <Money cents={s.plannedExpensesCents} />
             </div>
           </div>
         </section>
@@ -310,51 +333,10 @@ export default async function Dashboard() {
           <h2 className="card-title">
             <BadgeDollarSign size={13} className="text-lime" /> Extra Income
             <span className="ml-auto normal-case tracking-normal">
-              <ExtraIncomeForm month={month} trigger={<span className="text-[11px] font-medium text-lime hover:underline">+ Add</span>} />
+              <ExtraIncomeForm trigger={<span className="text-[11px] font-medium text-lime hover:underline">+ Add</span>} />
             </span>
           </h2>
-          <table className="table-base">
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th className="text-right">Expected</th>
-                <th className="text-right">Received</th>
-                <th className="text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {extras.map((e) => {
-                const status = extraIncomeStatus(e);
-                return (
-                  <tr key={e.id}>
-                    <td className="font-medium">
-                      <span className="flex items-center gap-1">
-                        <ExtraIncomeForm month={month} initial={e} trigger={<span className="cursor-pointer hover:text-lime">{e.source}</span>} />
-                      </span>
-                    </td>
-                    <td className="text-right">
-                      <Money cents={e.expectedCents} tone="plain" />
-                    </td>
-                    <td className="text-right">
-                      <Money cents={e.receivedCents} tone={e.receivedCents > 0 ? "pos" : "muted"} />
-                    </td>
-                    <td className="text-right">
-                      <Pill tone={status === "RECEIVED" ? "pos" : status === "PARTIAL" ? "info" : "warn"}>
-                        {status.charAt(0) + status.slice(1).toLowerCase()}
-                      </Pill>
-                    </td>
-                  </tr>
-                );
-              })}
-              {extras.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="text-center text-xs text-ink-3">
-                    No extra income this month
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <ExtraIncomeTable extras={extras} />
         </section>
       </div>
 

@@ -274,7 +274,7 @@ export function BillForm({
 
 // --- Extra income ---
 
-export function ExtraIncomeForm({ month, initial, trigger }: { month: string; initial?: ExtraIncome; trigger?: React.ReactNode }) {
+export function ExtraIncomeForm({ initial, trigger }: { initial?: ExtraIncome; trigger?: React.ReactNode }) {
   return (
     <FormShell
       title={initial ? "Edit Extra Income" : "Add Extra Income"}
@@ -285,18 +285,12 @@ export function ExtraIncomeForm({ month, initial, trigger }: { month: string; in
       {() => (
         <>
           {initial && <input type="hidden" name="id" value={initial.id} />}
-          <input type="hidden" name="month" value={initial?.month ?? month} />
           <Field label="Source">
             <input name="source" required defaultValue={initial?.source} className="input" placeholder="Tax return, refund, reimbursement…" />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Expected ($)">
-              <input name="expected" required defaultValue={dollars(initial?.expectedCents)} className="input" inputMode="decimal" />
-            </Field>
-            <Field label="Received so far ($)">
-              <input name="received" defaultValue={dollars(initial?.receivedCents ?? 0)} className="input" inputMode="decimal" />
-            </Field>
-          </div>
+          <Field label="Expected ($)">
+            <input name="expected" required defaultValue={dollars(initial?.expectedCents)} className="input" inputMode="decimal" />
+          </Field>
         </>
       )}
     </FormShell>
