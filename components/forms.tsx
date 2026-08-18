@@ -6,6 +6,7 @@ import type { Account, Bill, BillFrequency, ExtraIncome, PiggyBucket } from "@pr
 import { WEEKDAY_NAMES } from "@/lib/core/dates";
 import { saveAccount, saveBill, saveBucket, saveExtraIncome } from "@/app/actions";
 import { parseDollarsToCents, splitHalfCents } from "@/lib/core/money";
+import { useAccountColors } from "./account-colors-context";
 import { Modal } from "./modal";
 
 function dollars(cents: number | null | undefined): string {
@@ -19,6 +20,42 @@ function Field({ label, children, hint }: { label: string; children: React.React
       {children}
       {hint && <span className="mt-1 block text-[11px] leading-snug text-ink-3">{hint}</span>}
     </label>
+  );
+}
+
+// Bills are colored by picking one of your accounts rather than a free-form
+// swatch, so a bill's color always matches an account's card. The select
+// only tracks which account is chosen; a hidden input carries the actual hex
+// the server action expects.
+function BillColorField({ initialColor }: { initialColor?: string | null }) {
+  const accounts = useAccountColors();
+  const [selectedId, setSelectedId] = useState(
+    accounts.find((a) => a.color === initialColor)?.id ?? "",
+  );
+  const selected = accounts.find((a) => a.id === selectedId);
+  const swatch = selected
+    ? selected.color2
+      ? `linear-gradient(120deg, ${selected.color}, ${selected.color2})`
+      : selected.color
+    : "var(--ink-3)";
+
+  return (
+    <Field label="Color">
+      <div className="flex items-center gap-2">
+        <span className="h-9 w-9 shrink-0 rounded-md border border-line-2" style={{ background: swatch }} />
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="input"
+        >
+          <option value="">Default</option>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
+          ))}
+        </select>
+      </div>
+      <input type="hidden" name="color" value={selected?.color ?? ""} />
+    </Field>
   );
 }
 
@@ -228,16 +265,10 @@ export function BillForm({
                 </select>
               </Field>
             ) : (
-              <Field label="Color">
-                <input type="color" name="color" defaultValue={initial?.color ?? "#14b8a6"} className="input h-9 p-1" />
-              </Field>
+              <BillColorField initialColor={initial?.color} />
             )}
           </div>
-          {frequency === "YEARLY" && (
-            <Field label="Color">
-              <input type="color" name="color" defaultValue={initial?.color ?? "#14b8a6"} className="input h-9 p-1" />
-            </Field>
-          )}
+          {frequency === "YEARLY" && <BillColorField initialColor={initial?.color} />}
           {frequency === "WEEKLY" && (
             <p className="text-[11px] leading-snug text-ink-3">
               Amount is per week. A month with five of this weekday costs five times the amount.

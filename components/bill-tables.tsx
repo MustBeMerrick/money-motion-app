@@ -11,6 +11,7 @@ import { Money } from "@/components/ui";
 import { BillForm } from "@/components/forms";
 import { BillCheck, OccurrenceChips } from "@/components/toggles";
 import { ConfirmDelete } from "@/components/modal";
+import { BillColorDot } from "@/components/bill-color-dot";
 
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -39,10 +40,7 @@ function BillName({ bill }: { bill: BillWithStatus }) {
   const weekly = bill.frequency === "WEEKLY";
   return (
     <span className="flex items-center gap-2">
-      <span
-        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-        style={{ background: bill.color ?? "var(--ink-3)" }}
-      />
+      <BillColorDot color={bill.color} />
       <span className="min-w-0">
         <span className="block truncate">{bill.name}</span>
         {weekly && (
