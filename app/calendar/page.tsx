@@ -46,7 +46,7 @@ export default async function CalendarPage({
   const monthTotal = bills.reduce((sum, b) => sum + billMonthlyCostCents(b, month), 0);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="max-w-6xl">
       <PageHeader
         title="Bill Calendar"
         subtitle={`${bills.length} bills · ${formatCents(monthTotal)} due in ${monthLabel(month)}`}

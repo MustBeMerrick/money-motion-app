@@ -21,6 +21,9 @@ model Account {
   // signed: assets positive, credit-card debt negative
   balanceCents Int         @default(0)
   color        String?
+  // optional second stop: when set, the card gradient blends color -> color2
+  // before fading into the surface, instead of a single-hue fade
+  color2       String?
   sortOrder    Int         @default(0)
   active       Boolean     @default(true)
   createdAt    DateTime    @default(now())

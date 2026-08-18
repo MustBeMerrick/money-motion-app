@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   const plan = await getOrCreateMonthPlan(month);
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="max-w-xl">
       <PageHeader title="Settings" subtitle={`Month plan for ${monthLabel(month)}`} />
 
       <form action={saveMonthPlan} className="card flex flex-col gap-4">

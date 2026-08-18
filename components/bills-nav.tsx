@@ -25,7 +25,9 @@ export function BillsNav({ subtitle }: { subtitle: string }) {
         </div>
         {/* key: BillsNav survives tab navigation, so without a remount the
             form would keep the frequency it first mounted with */}
-        <BillForm key={current.frequency} defaultFrequency={current.frequency} />
+        <div className="mr-16">
+          <BillForm key={current.frequency} defaultFrequency={current.frequency} />
+        </div>
       </div>
       <nav className="mt-4 flex gap-1 border-b border-line">
         {TABS.map((tab) => {

@@ -17,17 +17,19 @@ const TYPE_LABEL: Record<Account["type"], string> = {
 
 function AccountCard({ account }: { account: Account }) {
   const color = account.color ?? "#7ED957";
+  const color2 = account.color2 && account.color2 !== color ? account.color2 : null;
+  const background = color2
+    ? `linear-gradient(120deg, color-mix(in srgb, ${color} 85%, var(--surface)), ${color2} 60%, var(--surface) 95%)`
+    : `linear-gradient(120deg, color-mix(in srgb, ${color} 85%, var(--surface)), var(--surface) 95%)`;
   return (
     <div
       className="card relative overflow-hidden"
-      style={{
-        background: `linear-gradient(120deg, color-mix(in srgb, ${color} 16%, var(--surface)), var(--surface) 70%)`,
-      }}
+      style={{ background }}
     >
       <div className="flex items-start justify-between">
         <div>
           <div className="font-semibold">{account.name}</div>
-          <div className="text-xs text-ink-3">{TYPE_LABEL[account.type]}</div>
+          <div className="text-xs text-white">{TYPE_LABEL[account.type]}</div>
         </div>
         <span className="flex items-center gap-1">
           <AccountForm initial={account} />
@@ -51,7 +53,7 @@ export default async function AccountsPage() {
   const netCents = accounts.reduce((sum, a) => sum + a.balanceCents, 0);
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="max-w-5xl">
       <PageHeader
         title="Accounts"
         subtitle={

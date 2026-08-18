@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Sidebar } from "@/components/sidebar";
+import { FloatingDailyBudget } from "@/components/floating-daily-budget";
+import { getDashboardData } from "@/lib/data";
 import "./globals.css";
 
 const inter = Inter({
@@ -13,13 +15,22 @@ export const metadata: Metadata = {
   description: "Simple. Smart. In Motion.",
 };
 
-export default function RootLayout({
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const { snapshot } = await getDashboardData();
+
   return (
     <html lang="en" className={inter.variable}>
       <body>
         <Sidebar />
+        <FloatingDailyBudget
+          dailyBudgetCents={snapshot.dailyBudgetCents}
+          tomorrowBudgetCents={snapshot.tomorrowBudgetCents}
+          plannedNetCents={snapshot.plannedNetCents}
+        />
         <main className="ml-60 min-h-screen px-8 py-7">{children}</main>
       </body>
     </html>

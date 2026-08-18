@@ -130,9 +130,12 @@ export function AccountForm({ initial, trigger }: { initial?: Account; trigger?:
               <input name="balance" required defaultValue={dollars(initial?.balanceCents ?? 0)} className="input" inputMode="decimal" />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Field label="Color">
               <input type="color" name="color" defaultValue={initial?.color ?? "#7ED957"} className="input h-9 p-1" />
+            </Field>
+            <Field label="Color 2" hint="Optional: blends left → right">
+              <input type="color" name="color2" defaultValue={initial?.color2 ?? initial?.color ?? "#7ED957"} className="input h-9 p-1" />
             </Field>
             <Field label="Sort order">
               <input name="sortOrder" type="number" defaultValue={initial?.sortOrder ?? 0} className="input" />

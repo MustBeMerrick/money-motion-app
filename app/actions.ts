@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseDollarsToCents } from "@/lib/core/money";
+import { daysBetween, todayIso } from "@/lib/core/dates";
+import { bucketValueOn } from "@/lib/core/piggy";
 
 const cents = z
   .string()
@@ -78,6 +80,7 @@ const accountSchema = z.object({
   type: z.enum(["CASH", "CHECKING", "SAVINGS", "CREDIT"]),
   balance: cents,
   color: z.string().optional(),
+  color2: z.string().optional(),
   sortOrder: z.coerce.number().int().default(0),
 });
 
@@ -88,6 +91,7 @@ export async function saveAccount(formData: FormData) {
     type: f.type,
     balanceCents: f.balance,
     color: f.color || null,
+    color2: f.color2 || null,
     sortOrder: f.sortOrder,
   };
   if (f.id) {
@@ -209,10 +213,32 @@ const bucketSchema = z.object({
 
 export async function saveBucket(formData: FormData) {
   const f = bucketSchema.parse(fields(formData));
+  let principalCents = f.principal;
+
+  // Changing just the rate pivots the amortization line around its
+  // start-date anchor, which silently shifts today's current value — the
+  // spreadsheet issue this mirrors. If the rate is the only thing that
+  // changed (principal/start date left as submitted), re-anchor the
+  // principal so today's value holds steady and only the future slope moves.
+  if (f.id) {
+    const existing = await prisma.piggyBucket.findUnique({ where: { id: f.id } });
+    if (
+      existing &&
+      f.ratePerDay !== existing.ratePerDayCents &&
+      f.principal === existing.principalCents &&
+      f.startDate === existing.startDate
+    ) {
+      const today = todayIso();
+      const todayValue = bucketValueOn(existing, today);
+      const days = Math.max(0, daysBetween(existing.startDate, today));
+      principalCents = todayValue - f.ratePerDay * days;
+    }
+  }
+
   const data = {
     name: f.name,
     startDate: f.startDate,
-    principalCents: f.principal,
+    principalCents,
     ratePerDayCents: f.ratePerDay,
     targetCents: f.perpetual ? null : (f.target ?? 0),
     originalCents: f.original,

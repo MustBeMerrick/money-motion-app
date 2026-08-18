@@ -284,7 +284,7 @@ export function BillBoards({
   return (
     <>
       {note && <p className="mb-4 text-xs text-ink-3">{note}</p>}
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[3fr_2fr]">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[830px_540px]">
         <section className="card">
           <h2 className="card-title">Shared</h2>
           <SharedBillTable bills={shared} month={month} frequency={frequency} />

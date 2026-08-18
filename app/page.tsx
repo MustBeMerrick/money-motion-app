@@ -1,22 +1,16 @@
 import Link from "next/link";
-import { BadgeDollarSign, Handshake, PiggyBank, UserRound } from "lucide-react";
+import { BadgeDollarSign, Handshake, UserRound } from "lucide-react";
 import { getDashboardData, type BillWithStatus } from "@/lib/data";
 import { WEEKDAY_SHORT, daysInMonth, monthLabel, semiMonthlyPayDates, shortDateLabel, type IsoMonth } from "@/lib/core/dates";
 import { billMonthlyCostCents, billOccurrencesInMonth } from "@/lib/core/month";
-import {
-  bucketCompletionDate,
-  bucketDaysLeft,
-  bucketProgress,
-  bucketProjectedEom,
-  bucketValueOn,
-} from "@/lib/core/piggy";
 import { formatCents } from "@/lib/core/money";
-import { Donut, LegendDot, Money, Pill, ProgressBar } from "@/components/ui";
+import { Donut, LegendDot, Money, ProgressBar } from "@/components/ui";
 import { SalaryReceivedToggle } from "@/components/toggles";
 import { StatusCell } from "@/components/bill-tables";
 import { EditableBalance } from "@/components/editable-balance";
 import { ExtraIncomeForm } from "@/components/forms";
 import { ExtraIncomeTable } from "@/components/extra-income-table";
+import { ActiveBucketsTable } from "@/components/active-buckets-table";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +46,7 @@ export default async function Dashboard() {
   const payDates = semiMonthlyPayDates(month);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="max-w-6xl">
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold">{greeting()}, Marc! 👋</h1>
@@ -64,7 +58,7 @@ export default async function Dashboard() {
       </div>
 
       {/* hero cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <section className="card">
           <h2 className="card-title">Monthly Summary</h2>
           <div className="flex flex-col gap-1.5 text-sm">
@@ -116,23 +110,6 @@ export default async function Dashboard() {
           </p>
         </section>
 
-        <section className="card">
-          <h2 className="card-title">Accounts Snapshot</h2>
-          <div className="flex flex-col gap-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-ink-2">Cash &amp; Checking</span>
-              <Money cents={s.liquidCents} tone="plain" />
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-2">Credit Cards</span>
-              <Money cents={s.ccNetCents} />
-            </div>
-            <div className="mt-1.5 flex justify-between border-t border-line pt-2">
-              <span className="font-semibold">Net Liquid</span>
-              <Money cents={s.netLiquidCents} />
-            </div>
-          </div>
-        </section>
       </div>
 
       {/* income / expenses / budget status */}
@@ -340,72 +317,10 @@ export default async function Dashboard() {
         </section>
       </div>
 
-      {/* piggy buckets */}
-      <section className="card mt-4">
-        <h2 className="card-title">
-          <PiggyBank size={13} className="text-lime" /> Piggy Bank Buckets
-          <span className="ml-2 font-normal normal-case tracking-normal text-ink-3">your virtual daily-drip buckets</span>
-          <Link href="/piggy" className="ml-auto text-[11px] font-medium text-lime normal-case tracking-normal hover:underline">
-            Manage Buckets
-          </Link>
-        </h2>
-        <table className="table-base">
-          <thead>
-            <tr>
-              <th>Bucket</th>
-              <th className="text-right">Current</th>
-              <th className="text-right">Daily Change</th>
-              <th className="text-right">Days Left</th>
-              <th className="text-right">Completes</th>
-              <th className="text-right">Projected (EOM)</th>
-              <th className="w-40 pl-6">Progress</th>
-            </tr>
-          </thead>
-          <tbody>
-            {buckets.map((b) => {
-              const daysLeft = bucketDaysLeft(b, today);
-              const completes = bucketCompletionDate(b, today);
-              const progress = bucketProgress(b, today);
-              return (
-                <tr key={b.id}>
-                  <td className="font-medium">{b.name}</td>
-                  <td className="text-right">
-                    <Money cents={bucketValueOn(b, today)} />
-                  </td>
-                  <td className="text-right">
-                    {b.ratePerDayCents === 0 ? (
-                      <span className="text-ink-3">—</span>
-                    ) : (
-                      <Money cents={b.ratePerDayCents} signed className="text-xs" />
-                    )}
-                  </td>
-                  <td className="text-right text-ink-2">
-                    {daysLeft === 0 ? <Pill tone="pos">Done</Pill> : (daysLeft ?? "∞")}
-                  </td>
-                  <td className="text-right text-xs text-ink-3">
-                    {completes && daysLeft !== 0 ? shortDateLabel(completes) : "—"}
-                  </td>
-                  <td className="text-right">
-                    <Money cents={bucketProjectedEom(b, month)} tone="plain" />
-                  </td>
-                  <td className="pl-6">
-                    {progress === null ? (
-                      <span className="text-xs text-ink-3">perpetual</span>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <ProgressBar fraction={progress} className="flex-1" />
-                        <span className="w-9 text-right text-xs text-ink-2 tabular-nums">
-                          {Math.round(progress * 100)}%
-                        </span>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </section>
+      {/* piggy buckets — same table as the Piggy Bank page */}
+      <div className="mt-4">
+        <ActiveBucketsTable buckets={buckets} today={today} />
+      </div>
     </div>
   );
 }

@@ -17,7 +17,7 @@ export default async function PiggyPage() {
   const archived = buckets.filter((b) => b.archived);
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="max-w-6xl">
       <PageHeader
         title="Piggy Banks"
         subtitle="Buckets drip money in or out of the budget a little every day"

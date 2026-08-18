@@ -17,9 +17,9 @@ async function main() {
 
   await prisma.account.createMany({
     data: [
-      { name: "Cash", type: "CASH", balanceCents: 7_300, color: "#22c55e", sortOrder: 0 },
+      { name: "Cash", type: "CASH", balanceCents: 7_300, color: "#85BB65", sortOrder: 0 },
       { name: "Chase Checking", type: "CHECKING", balanceCents: 146_273, color: "#14b8a6", sortOrder: 1 },
-      { name: "Freedom", type: "CREDIT", balanceCents: 31_982, color: "#38bdf8", sortOrder: 2 },
+      { name: "Freedom", type: "CREDIT", balanceCents: 31_982, color: "#29ABE2", sortOrder: 2 },
       { name: "Unlimited", type: "CREDIT", balanceCents: 0, color: "#6366f1", sortOrder: 3 },
       { name: "Prime", type: "CREDIT", balanceCents: -8_726, color: "#a855f7", sortOrder: 4 },
       { name: "Reserve", type: "CREDIT", balanceCents: -217_703, color: "#8b5cf6", sortOrder: 5 },
