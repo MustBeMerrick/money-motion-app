@@ -56,7 +56,15 @@ function BillName({ bill }: { bill: BillWithStatus }) {
 // A weekly bill is charged four or five times a month, so each charge gets its
 // own chip. Everything else has a single charge and keeps one checkbox. A bill
 // with no charge this month (a yearly one in an off month) gets a dash.
-export function StatusCell({ bill, field }: { bill: BillWithStatus; field: "hit" | "paid" }) {
+export function StatusCell({
+  bill,
+  field,
+  showMarkAll = true,
+}: {
+  bill: BillWithStatus;
+  field: "hit" | "paid";
+  showMarkAll?: boolean;
+}) {
   const only = bill.occurrences[0];
   return (
     <td className="text-center">
@@ -66,6 +74,7 @@ export function StatusCell({ bill, field }: { bill: BillWithStatus; field: "hit"
           billName={bill.name}
           field={field}
           occurrences={bill.occurrences}
+          showMarkAll={showMarkAll}
         />
       ) : only ? (
         <span className="flex justify-center">
@@ -239,7 +248,7 @@ export function SoloBillTable({
             <td className="text-right">
               <Money cents={b.amountCents} tone="plain" />
             </td>
-            <StatusCell bill={b} field="hit" />
+            <StatusCell bill={b} field="hit" showMarkAll={false} />
             {!weekly && (
               <td className="pl-4 text-xs whitespace-nowrap text-ink-2">{dueText(b)}</td>
             )}

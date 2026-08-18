@@ -21,13 +21,18 @@ function greeting(): string {
   return "Good evening";
 }
 
-function dueLabel(bill: BillWithStatus, month: IsoMonth): string {
+function DueLabel({ bill, month }: { bill: BillWithStatus; month: IsoMonth }) {
   if (bill.frequency === "WEEKLY") {
     const day = bill.dueWeekday == null ? "—" : WEEKDAY_SHORT[bill.dueWeekday];
-    return `${day} · ${billOccurrencesInMonth(bill, month)}×`;
+    return (
+      <span className="block leading-tight">
+        <span className="block">{day}</span>
+        <span className="block">{billOccurrencesInMonth(bill, month)}×</span>
+      </span>
+    );
   }
   const day = Math.min(bill.dueDay, daysInMonth(month));
-  return shortDateLabel(`${month}-${String(day).padStart(2, "0")}`);
+  return <>{shortDateLabel(`${month}-${String(day).padStart(2, "0")}`)}</>;
 }
 
 export default async function Dashboard() {
@@ -240,7 +245,7 @@ export default async function Dashboard() {
               <tr>
                 <th>Bill</th>
                 <th className="text-right">Amount</th>
-                <th className="pl-3 text-center">Hit</th>
+                <th className="text-center">Hit</th>
                 <th className="text-center">Paid</th>
                 <th className="text-right">Due</th>
               </tr>
@@ -254,7 +259,9 @@ export default async function Dashboard() {
                   </td>
                   <StatusCell bill={b} field="hit" />
                   <StatusCell bill={b} field="paid" />
-                  <td className="text-right text-xs text-ink-3">{dueLabel(b, month)}</td>
+                  <td className="text-right text-xs text-ink-3">
+                    <DueLabel bill={b} month={month} />
+                  </td>
                 </tr>
               ))}
               <tr>
@@ -275,12 +282,18 @@ export default async function Dashboard() {
               Manage Bills
             </Link>
           </h2>
-          <table className="table-base">
+          <table className="table-base table-fixed">
+            <colgroup>
+              <col style={{ width: "30%" }} />
+              <col style={{ width: "21%" }} />
+              <col style={{ width: "34%" }} />
+              <col style={{ width: "15%" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Bill</th>
-                <th className="text-right">Amount</th>
-                <th className="pl-3 text-center">Hit</th>
+                <th className="text-left">Amount</th>
+                <th className="text-center">Hit</th>
                 <th className="text-right">Due</th>
               </tr>
             </thead>
@@ -288,16 +301,18 @@ export default async function Dashboard() {
               {soloBills.map((b) => (
                 <tr key={b.id}>
                   <td className="font-medium">{b.name}</td>
-                  <td className="text-right">
+                  <td className="text-left">
                     <Money cents={billMonthlyCostCents(b, month)} tone="plain" />
                   </td>
-                  <StatusCell bill={b} field="hit" />
-                  <td className="text-right text-xs text-ink-3">{dueLabel(b, month)}</td>
+                  <StatusCell bill={b} field="hit" showMarkAll={false} />
+                  <td className="text-right text-xs text-ink-3">
+                    <DueLabel bill={b} month={month} />
+                  </td>
                 </tr>
               ))}
               <tr>
                 <td className="font-semibold">Total</td>
-                <td className="text-right">
+                <td className="text-left">
                   <Money cents={soloBills.reduce((sum, b) => sum + billMonthlyCostCents(b, month), 0)} tone="plain" />
                 </td>
                 <td colSpan={2} />

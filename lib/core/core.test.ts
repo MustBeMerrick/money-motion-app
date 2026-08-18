@@ -379,6 +379,28 @@ describe("month snapshot", () => {
     expect(after.pendingReimburseCents).toBe(0);
   });
 
+  // Someone can Venmo you before a shared charge even posts. Once that
+  // happens you're on the hook for the whole amount when it does hit (no
+  // more reimbursement coming), so the unhit occurrence should switch from
+  // costing just your share to costing the full amount.
+  it("marking an unhit shared bill paid in advance charges the full amount, not just your share", () => {
+    const before = monthSnapshot(base);
+    // base.bills[1]: shared, unhit, 26,700 / 13,350 reimburse
+    expect(before.recurringOutOfPocketRemainingCents).toBe(13_350 + 4_500);
+
+    const after = monthSnapshot({
+      ...base,
+      bills: base.bills.map((b, i) =>
+        i === 1 ? { ...b, occurrences: [occ("2026-08-16", false, true)] } : b,
+      ),
+    });
+    // the reimbursed share is no longer subtracted, so the full 26,700 is
+    // now outstanding instead of just the 13,350 out-of-pocket portion
+    expect(after.recurringOutOfPocketRemainingCents).toBe(26_700 + 4_500);
+    // it hasn't hit, so this still isn't a pending reimbursement either way
+    expect(after.pendingReimburseCents).toBe(before.pendingReimburseCents);
+  });
+
   it("salary received moves out of outstanding", () => {
     const after = monthSnapshot({
       ...base,

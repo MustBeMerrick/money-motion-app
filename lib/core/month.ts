@@ -198,11 +198,19 @@ export function monthSnapshot(input: SnapshotInput): MonthSnapshot {
   );
   const recurringRemainingCents = recurringTotalCents - recurringHitCents;
 
-  const recurringOutOfPocketRemainingCents = bills.reduce(
-    (sum, b) =>
-      sum + (b.shared ? billOutOfPocketCents(b) : b.amountCents) * countWhere(b, (o) => !o.hit),
-    0,
-  );
+  // Unhit + unpaid: only my share is outstanding, since the other party's
+  // portion is still expected to be reimbursed once the charge lands.
+  // Unhit + paid (they Venmo'd me before the charge even posted): I'm
+  // already holding their share, so the *full* amount is now on me when
+  // it hits — there's nothing left to reimburse.
+  const recurringOutOfPocketRemainingCents = bills.reduce((sum, b) => {
+    if (!b.shared) return sum + b.amountCents * countWhere(b, (o) => !o.hit);
+    return (
+      sum +
+      billOutOfPocketCents(b) * countWhere(b, (o) => !o.hit && !o.paid) +
+      b.amountCents * countWhere(b, (o) => !o.hit && o.paid)
+    );
+  }, 0);
 
   const pendingReimburseCents = bills.reduce(
     (sum, b) =>

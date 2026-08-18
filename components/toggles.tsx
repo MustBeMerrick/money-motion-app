@@ -66,11 +66,13 @@ export function OccurrenceChips({
   billName,
   field,
   occurrences,
+  showMarkAll = true,
 }: {
   billId: string;
   billName: string;
   field: "hit" | "paid";
   occurrences: OccurrenceStatus[];
+  showMarkAll?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const done = occurrences.filter((o) => o[field]).length;
@@ -103,26 +105,28 @@ export function OccurrenceChips({
           </button>
         );
       })}
-      <button
-        type="button"
-        title={allDone ? "Clear all" : "Mark all"}
-        disabled={pending}
-        onClick={() =>
-          startTransition(() =>
-            setBillStatusForMonth(
-              billId,
-              occurrences.map((o) => o.date),
-              field,
-              !allDone,
-            ),
-          )
-        }
-        className={`ml-0.5 cursor-pointer rounded px-1 text-[10px] font-semibold tabular-nums transition-colors hover:text-lime ${
-          allDone ? "text-lime" : "text-ink-3"
-        } ${pending ? "opacity-50" : ""}`}
-      >
-        {done}/{occurrences.length}
-      </button>
+      {showMarkAll && (
+        <button
+          type="button"
+          title={allDone ? "Clear all" : "Mark all"}
+          disabled={pending}
+          onClick={() =>
+            startTransition(() =>
+              setBillStatusForMonth(
+                billId,
+                occurrences.map((o) => o.date),
+                field,
+                !allDone,
+              ),
+            )
+          }
+          className={`ml-0.5 cursor-pointer rounded px-1 text-[10px] font-semibold tabular-nums transition-colors hover:text-lime ${
+            allDone ? "text-lime" : "text-ink-3"
+          } ${pending ? "opacity-50" : ""}`}
+        >
+          {done}/{occurrences.length}
+        </button>
+      )}
     </span>
   );
 }
