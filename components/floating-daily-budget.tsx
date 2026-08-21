@@ -21,7 +21,7 @@ export function FloatingDailyBudget({
   const pathname = usePathname();
   // dashboard already shows it inline; calendar fills the whole viewport
   // and has no room for a floating overlay
-  if (pathname === "/" || pathname.startsWith("/calendar")) return null;
+  if (pathname === "/" || pathname === "/login" || pathname.startsWith("/calendar")) return null;
 
   return (
     <div

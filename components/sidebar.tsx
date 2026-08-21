@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   CalendarDays,
   CreditCard,
   LayoutDashboard,
+  LogOut,
   PiggyBank,
   ReceiptText,
   Settings,
@@ -75,6 +76,24 @@ function NavLinks({
   );
 }
 
+function SignOut() {
+  const router = useRouter();
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        await fetch("/api/auth/logout", { method: "POST" });
+        router.replace("/login");
+        router.refresh();
+      }}
+      className="flex cursor-pointer items-center gap-2 text-left text-[11px] font-medium text-ink-3 transition-colors hover:text-ink"
+    >
+      <LogOut size={13} />
+      Sign out
+    </button>
+  );
+}
+
 /** Three bars that fold into an X — the app is called MoneyMotion. */
 function MenuIcon({ open }: { open: boolean }) {
   const bar = "absolute left-0 block h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out";
@@ -94,6 +113,10 @@ export function Sidebar() {
   // mobile drawer; a tap on a link closes it so the new page isn't hidden
   const [open, setOpen] = useState(false);
 
+  // the login page is the one screen reachable without a session, so it
+  // shows no navigation
+  if (pathname === "/login") return null;
+
   return (
     <>
       {/* desktop: fixed left rail */}
@@ -104,10 +127,13 @@ export function Sidebar() {
         <nav className="mt-8 flex flex-col gap-1">
           <NavLinks pathname={pathname} />
         </nav>
-        <div className="mt-auto px-3 text-[11px] leading-relaxed text-ink-3">
-          Private budget console.
-          <br />
-          Data lives in local SQLite.
+        <div className="mt-auto flex flex-col gap-3 px-3 text-[11px] leading-relaxed text-ink-3">
+          <SignOut />
+          <span>
+            Private budget console.
+            <br />
+            Data lives in local SQLite.
+          </span>
         </div>
       </aside>
 
@@ -138,6 +164,9 @@ export function Sidebar() {
         >
           <div className="flex flex-col gap-1 border-t border-line px-3 pt-2 pb-3">
             <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} stagger={open} />
+            <div className="mt-1 border-t border-line px-3 pt-3">
+              <SignOut />
+            </div>
           </div>
         </nav>
       </header>
