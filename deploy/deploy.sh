@@ -41,6 +41,9 @@ cmd_deploy() {
   trap "rm -rf '$tmp'" EXIT
   git archive HEAD | tar -x -C "$tmp"
   rsync -az --delete "$tmp"/ "$HOST:$SRC/"
+  # make the bind-mount target ourselves: if docker creates it, it lands
+  # root-owned and the uid-1000 container can't write the sqlite file
+  ssh "$HOST" "mkdir -p ~/$DATA"
   ssh "$HOST" "set -e; cd ~/$SRC; $COMPOSE build app; $COMPOSE run --rm migrate; $COMPOSE up -d app"
   echo "deployed $(git rev-parse --short HEAD) -> http://gmktec.local:3003"
 }
