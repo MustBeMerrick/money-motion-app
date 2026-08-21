@@ -31,7 +31,7 @@ export default async function RootLayout({
           tomorrowBudgetCents={snapshot.tomorrowBudgetCents}
           plannedNetCents={snapshot.plannedNetCents}
         />
-        <main className="ml-60 min-h-screen px-8 py-7">{children}</main>
+        <main className="min-h-screen px-4 pt-5 pb-7 lg:ml-60 lg:px-8 lg:pt-7">{children}</main>
       </body>
     </html>
   );

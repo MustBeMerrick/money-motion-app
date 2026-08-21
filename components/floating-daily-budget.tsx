@@ -26,19 +26,25 @@ export function FloatingDailyBudget({
   return (
     <div
       key={pathname}
-      className="card fixed top-7 right-8 z-50 w-56 bg-gradient-to-br from-surface to-forest/20 shadow-lg shadow-black/30"
+      className="card fixed right-3 bottom-3 z-40 w-auto rounded-full px-3.5 py-2 bg-gradient-to-br from-surface to-forest/20 shadow-lg shadow-black/40 lg:top-7 lg:right-8 lg:bottom-auto lg:w-56 lg:rounded-2xl lg:p-5"
       style={{ animation: "slide-in-corner 300ms ease-out" }}
     >
-      <h2 className="card-title">Daily Budget</h2>
+      <h2 className="card-title hidden lg:flex">Daily Budget</h2>
       <div className="flex items-baseline gap-2">
-        <div className="text-2xl font-bold text-accent tabular-nums">{formatCents(dailyBudgetCents)}</div>
+        <div className="text-base font-bold text-accent tabular-nums lg:text-2xl">
+          {formatCents(dailyBudgetCents)}
+        </div>
+        <span className="text-[10px] font-medium text-ink-3 lg:hidden">/day</span>
         {tomorrowBudgetCents !== null && (
-          <div className="text-sm font-semibold text-ink-3 tabular-nums" title="Tomorrow's daily budget">
+          <div
+            className="hidden text-sm font-semibold text-ink-3 tabular-nums lg:block"
+            title="Tomorrow's daily budget"
+          >
             {formatCents(tomorrowBudgetCents)}
           </div>
         )}
       </div>
-      <p className="mt-2 text-xs text-ink-2">
+      <p className="mt-2 hidden text-xs text-ink-2 lg:block">
         Available / day · <Money cents={plannedNetCents} tone="plain" className="text-xs" /> left
       </p>
     </div>

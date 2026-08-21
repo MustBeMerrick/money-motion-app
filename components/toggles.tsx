@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useOptimistic, useTransition } from "react";
 import { Check } from "lucide-react";
 import { setBillStatus, setBillStatusForMonth, setSalaryReceived } from "@/app/actions";
 import type { OccurrenceStatus } from "@/lib/core/month";
@@ -14,21 +14,26 @@ function CheckBox({
   onToggle: (next: boolean) => void;
   label: string;
 }) {
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
+  const [shown, setShown] = useOptimistic(checked);
   return (
     <button
       type="button"
       aria-label={label}
-      aria-pressed={checked}
-      disabled={pending}
-      onClick={() => startTransition(() => onToggle(!checked))}
+      aria-pressed={shown}
+      onClick={() =>
+        startTransition(async () => {
+          setShown(!shown);
+          await onToggle(!shown);
+        })
+      }
       className={`flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border transition-colors ${
-        checked
+        shown
           ? "border-lime bg-gradient-to-br from-forest to-lime text-[#08130a]"
           : "border-line-2 bg-bg hover:border-lime/60"
-      } ${pending ? "opacity-50" : ""}`}
+      }`}
     >
-      {checked && <Check size={13} strokeWidth={3.5} />}
+      {shown && <Check size={13} strokeWidth={3.5} />}
     </button>
   );
 }
@@ -74,15 +79,24 @@ export function OccurrenceChips({
   occurrences: OccurrenceStatus[];
   showMarkAll?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
-  const done = occurrences.filter((o) => o[field]).length;
-  const allDone = done === occurrences.length && occurrences.length > 0;
+  const [, startTransition] = useTransition();
+  // chips paint optimistically and the counter follows them, so a tap lands
+  // without waiting for the server to write and re-render
+  const [shownOccurrences, applyOptimistic] = useOptimistic(
+    occurrences,
+    (state, patch: { dates: string[]; value: boolean }) =>
+      state.map((o) =>
+        patch.dates.includes(o.date) ? { ...o, [field]: patch.value } : o,
+      ),
+  );
+  const done = shownOccurrences.filter((o) => o[field]).length;
+  const allDone = done === shownOccurrences.length && shownOccurrences.length > 0;
 
   if (occurrences.length === 0) return <span className="text-ink-3">—</span>;
 
   return (
     <span className="flex items-center justify-center gap-1">
-      {occurrences.map((o) => {
+      {shownOccurrences.map((o) => {
         const on = o[field];
         return (
           <button
@@ -91,15 +105,17 @@ export function OccurrenceChips({
             title={`${billName} — ${o.date} ${field}`}
             aria-label={`${billName} ${o.date} ${field}`}
             aria-pressed={on}
-            disabled={pending}
             onClick={() =>
-              startTransition(() => setBillStatus(billId, o.date, field, !on))
+              startTransition(async () => {
+                applyOptimistic({ dates: [o.date], value: !on });
+                await setBillStatus(billId, o.date, field, !on);
+              })
             }
             className={`h-5 w-5 cursor-pointer rounded border text-[9px] font-semibold tabular-nums transition-colors ${
               on
                 ? "border-lime bg-gradient-to-br from-forest to-lime text-[#08130a]"
                 : "border-line-2 bg-bg text-ink-3 hover:border-lime/60"
-            } ${pending ? "opacity-50" : ""}`}
+            }`}
           >
             {Number(o.date.slice(8, 10))}
           </button>
@@ -109,20 +125,16 @@ export function OccurrenceChips({
         <button
           type="button"
           title={allDone ? "Clear all" : "Mark all"}
-          disabled={pending}
-          onClick={() =>
-            startTransition(() =>
-              setBillStatusForMonth(
-                billId,
-                occurrences.map((o) => o.date),
-                field,
-                !allDone,
-              ),
-            )
-          }
+          onClick={() => {
+            const dates = shownOccurrences.map((o) => o.date);
+            startTransition(async () => {
+              applyOptimistic({ dates, value: !allDone });
+              await setBillStatusForMonth(billId, dates, field, !allDone);
+            });
+          }}
           className={`ml-0.5 cursor-pointer rounded px-1 text-[10px] font-semibold tabular-nums transition-colors hover:text-lime ${
             allDone ? "text-lime" : "text-ink-3"
-          } ${pending ? "opacity-50" : ""}`}
+          }`}
         >
           {done}/{occurrences.length}
         </button>
@@ -141,13 +153,10 @@ export function SalaryReceivedToggle({
   received: boolean;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <CheckBox
-        checked={received}
-        label={`${which === "mid" ? "Mid-month" : "End-of-month"} salary received`}
-        onToggle={(next) => setSalaryReceived(month, which, next)}
-      />
-      <span className="text-[11px] text-ink-3">received</span>
-    </span>
+    <CheckBox
+      checked={received}
+      label={`${which === "mid" ? "Mid-month" : "End-of-month"} salary received`}
+      onToggle={(next) => setSalaryReceived(month, which, next)}
+    />
   );
 }

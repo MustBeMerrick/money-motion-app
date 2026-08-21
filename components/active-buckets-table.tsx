@@ -85,7 +85,75 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
           Sort by days left
         </button>
       </h2>
-      <table className="table-base">
+      {/* phone: nine columns can't fit, so each bucket becomes a card with
+          the same numbers stacked — name/status, value, rate, progress */}
+      <div className="flex flex-col gap-3 lg:hidden">
+        {rows.map(({ bucket: b, daysLeft }) => {
+          const completes = bucketCompletionDate(b, today);
+          const progress = bucketProgress(b, today);
+          const remaining = bucketRemaining(b, today);
+          return (
+            <div key={b.id} className="rounded-xl border border-line bg-bg/40 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-medium">{b.name}</span>
+                <span className="shrink-0 text-sm text-ink-2">
+                  {daysLeft === 0 ? (
+                    <Pill tone="pos">Done</Pill>
+                  ) : daysLeft === null ? (
+                    <Pill tone="muted">perpetual</Pill>
+                  ) : (
+                    `${daysLeft}d left`
+                  )}
+                </span>
+              </div>
+
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <BucketCurrentStepper bucketId={b.id} cents={bucketValueOn(b, today)} />
+                <span className="text-xs text-ink-3">
+                  {b.ratePerDayCents === 0 ? (
+                    "no drip"
+                  ) : (
+                    <>
+                      <Money cents={b.ratePerDayCents} signed className="text-xs" /> /day
+                    </>
+                  )}
+                </span>
+              </div>
+
+              {progress !== null && (
+                <div className="mt-3 flex items-center gap-2">
+                  <ProgressBar fraction={progress} className="flex-1" />
+                  <span className="w-9 text-right text-xs text-ink-2 tabular-nums">
+                    {Math.round(progress * 100)}%
+                  </span>
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-2 text-[11px] text-ink-3">
+                <span>
+                  {shortDateLabel(b.startDate)}
+                  {completes && daysLeft !== 0 ? ` → ${shortDateLabel(completes)}` : ""}
+                  {remaining !== null && (
+                    <>
+                      {" · "}
+                      <Money cents={remaining} tone="plain" className="text-[11px]" /> to go
+                    </>
+                  )}
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <BucketForm initial={b} />
+                  <ArchiveButton id={b.id} archived={false} />
+                </span>
+              </div>
+            </div>
+          );
+        })}
+        {rows.length === 0 && (
+          <p className="text-center text-xs text-ink-3">No buckets yet — add one to start dripping</p>
+        )}
+      </div>
+
+      <table className="table-base hidden lg:table">
         <thead>
           <tr>
             <th>Bucket</th>

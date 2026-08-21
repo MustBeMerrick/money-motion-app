@@ -107,7 +107,7 @@ function FormShell({
         onClick={() => setOpen(true)}
         className={
           trigger
-            ? "cursor-pointer"
+            ? "cursor-pointer text-left"
             : editing
               ? "cursor-pointer rounded-md p-1 text-ink-3 hover:bg-surface-2 hover:text-ink"
               : "btn btn-primary"

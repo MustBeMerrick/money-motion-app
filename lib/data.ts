@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Account, Bill, ExtraIncome, MonthPlan, PiggyBucket } from "@prisma/client";
 import { prisma } from "./prisma";
 import { monthOf, todayIso, type IsoDate, type IsoMonth } from "./core/dates";
@@ -72,7 +73,11 @@ export async function getBillsWithStatus(month: IsoMonth): Promise<BillWithStatu
   });
 }
 
-export async function getDashboardData(today: IsoDate = todayIso()): Promise<DashboardData> {
+// the layout (floating budget card) and the page both want this on every
+// render; cache() collapses them into one set of queries per request
+export const getDashboardData = cache(async function getDashboardData(
+  today: IsoDate = todayIso(),
+): Promise<DashboardData> {
   const month = monthOf(today);
   const [accounts, plan, allBills, extras, buckets] = await Promise.all([
     prisma.account.findMany({
@@ -99,4 +104,4 @@ export async function getDashboardData(today: IsoDate = todayIso()): Promise<Das
   });
 
   return { today, month, accounts, plan, bills, extras, buckets, snapshot };
-}
+});

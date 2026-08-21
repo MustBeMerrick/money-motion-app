@@ -4,7 +4,7 @@ import { getDashboardData, type BillWithStatus } from "@/lib/data";
 import { WEEKDAY_SHORT, daysInMonth, monthLabel, semiMonthlyPayDates, shortDateLabel, type IsoMonth } from "@/lib/core/dates";
 import { billMonthlyCostCents, billOccurrencesInMonth } from "@/lib/core/month";
 import { formatCents } from "@/lib/core/money";
-import { Donut, LegendDot, Money, ProgressBar } from "@/components/ui";
+import { Money, ProgressBar } from "@/components/ui";
 import { SalaryReceivedToggle } from "@/components/toggles";
 import { StatusCell } from "@/components/bill-tables";
 import { EditableBalance } from "@/components/editable-balance";
@@ -19,6 +19,39 @@ function greeting(): string {
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
+}
+
+// Credit cards in the Expenses block wear their account color as a
+// highlight behind the name — gradient accounts keep both stops. The
+// foreground picks whichever of black / off-white has the higher WCAG
+// contrast ratio against the highlight, so lime and navy cards are both
+// readable. Crossover is at relative luminance sqrt(1.05 * 0.05) - 0.05.
+function readableInk(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return "var(--ink)";
+  const n = parseInt(m[1], 16);
+  const srgb = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const v = c / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+  return luminance > 0.1791 ? "#000" : "var(--ink)";
+}
+
+function AccountName({ name, color, color2 }: { name: string; color: string | null; color2: string | null }) {
+  if (!color) return <span className="text-ink-2">{name}</span>;
+  const second = color2 && color2 !== color ? color2 : null;
+  return (
+    <span
+      className="rounded px-1.5 py-0.5 font-medium"
+      style={{
+        background: second ? `linear-gradient(120deg, ${color}, ${second})` : color,
+        color: readableInk(second ?? color),
+      }}
+    >
+      {name}
+    </span>
+  );
 }
 
 function DueLabel({ bill, month }: { bill: BillWithStatus; month: IsoMonth }) {
@@ -47,11 +80,10 @@ export default async function Dashboard() {
     (a.occurrences[0]?.date ?? "").localeCompare(b.occurrences[0]?.date ?? "");
   const sharedBills = bills.filter((b) => b.shared).sort(byDueDate);
   const soloBills = bills.filter((b) => !b.shared).sort(byDueDate);
-  const hitFraction = s.recurringTotalCents > 0 ? s.recurringHitCents / s.recurringTotalCents : 0;
   const payDates = semiMonthlyPayDates(month);
 
   return (
-    <div className="max-w-6xl">
+    <div className="w-full lg:w-[61rem]">
       <div className="mb-6 flex items-end justify-between">
         <div>
           <h1 className="text-2xl font-bold">{greeting()}, Marc! 👋</h1>
@@ -62,8 +94,8 @@ export default async function Dashboard() {
         </div>
       </div>
 
-      {/* hero cards */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* hero cards — columns match the income/expenses row below */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[19rem_19rem_21rem]">
         <section className="card">
           <h2 className="card-title">Monthly Summary</h2>
           <div className="flex flex-col gap-1.5 text-sm">
@@ -86,18 +118,6 @@ export default async function Dashboard() {
           </div>
         </section>
 
-        <section className="card">
-          <h2 className="card-title">Days Left</h2>
-          <div className="text-3xl font-bold">
-            {s.daysLeft}
-            <span className="ml-1.5 text-sm font-medium text-ink-3">of {s.daysInMonth} days</span>
-          </div>
-          <ProgressBar
-            fraction={(s.daysInMonth - s.daysLeft) / s.daysInMonth}
-            className="mt-3.5"
-          />
-        </section>
-
         <section className="card bg-gradient-to-br from-surface to-forest/20">
           <h2 className="card-title">Daily Budget</h2>
           <div className="flex items-baseline gap-2">
@@ -115,10 +135,22 @@ export default async function Dashboard() {
           </p>
         </section>
 
+        <section className="card">
+          <h2 className="card-title">Days Left</h2>
+          <div className="text-3xl font-bold">
+            {s.daysLeft}
+            <span className="ml-1.5 text-sm font-medium text-ink-3">of {s.daysInMonth} days</span>
+          </div>
+          <ProgressBar
+            fraction={(s.daysInMonth - s.daysLeft) / s.daysInMonth}
+            className="mt-3.5"
+          />
+        </section>
+
       </div>
 
-      {/* income / expenses / budget status */}
-      <div className="mt-4 grid grid-cols-3 gap-4">
+      {/* income / expenses / extra income */}
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[19rem_19rem_21rem]">
         <section className="card">
           <h2 className="card-title">
             Income
@@ -173,7 +205,7 @@ export default async function Dashboard() {
           <div className="flex flex-col gap-1.5 text-sm">
             {creditAccounts.map((a) => (
               <div key={a.id} className="flex items-center justify-between">
-                <span className="text-ink-2">{a.name}</span>
+                <AccountName name={a.name} color={a.color} color2={a.color2} />
                 <EditableBalance accountId={a.id} cents={a.balanceCents} />
               </div>
             ))}
@@ -198,41 +230,18 @@ export default async function Dashboard() {
         </section>
 
         <section className="card">
-          <h2 className="card-title">Budget Status</h2>
-          <div className="flex items-center gap-5">
-            <Donut
-              fraction={hitFraction}
-              label={`${Math.round(hitFraction * 100)}%`}
-              sublabel="of recurring hit"
-            />
-            <div className="flex flex-col gap-2 text-xs">
-              <div className="flex items-center gap-2">
-                <LegendDot color="var(--lime)" />
-                <span className="text-ink-2">Hit</span>
-                <Money cents={s.recurringHitCents} tone="plain" className="ml-auto text-xs" />
-              </div>
-              <div className="flex items-center gap-2">
-                <LegendDot color="var(--surface-2)" />
-                <span className="text-ink-2">Remaining</span>
-                <Money cents={s.recurringRemainingCents} tone="plain" className="ml-auto text-xs" />
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-col gap-1.5 border-t border-line pt-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-ink-2">Piggy net effect</span>
-              <Money cents={s.piggyNetCents} signed />
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-2">Projected Net</span>
-              <Money cents={s.plannedNetCents} signed />
-            </div>
-          </div>
+          <h2 className="card-title">
+            <BadgeDollarSign size={13} className="text-lime" /> Extra Income
+            <span className="ml-auto normal-case tracking-normal">
+              <ExtraIncomeForm trigger={<span className="text-[11px] font-medium text-lime hover:underline">+ Add</span>} />
+            </span>
+          </h2>
+          <ExtraIncomeTable extras={extras} />
         </section>
       </div>
 
-      {/* bills + extra income */}
-      <div className="mt-4 grid grid-cols-3 gap-4">
+      {/* bills */}
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[30rem_30rem]">
         <section className="card">
           <h2 className="card-title">
             <Handshake size={13} className="text-lime" /> Shared Recurring Bills
@@ -319,16 +328,6 @@ export default async function Dashboard() {
               </tr>
             </tbody>
           </table>
-        </section>
-
-        <section className="card">
-          <h2 className="card-title">
-            <BadgeDollarSign size={13} className="text-lime" /> Extra Income
-            <span className="ml-auto normal-case tracking-normal">
-              <ExtraIncomeForm trigger={<span className="text-[11px] font-medium text-lime hover:underline">+ Add</span>} />
-            </span>
-          </h2>
-          <ExtraIncomeTable extras={extras} />
         </section>
       </div>
 

@@ -25,6 +25,10 @@
   --warn: #fbbf24;
   --info: #38bdf8;
 
+  /* overshoots slightly at the end so drawer items settle like liquid
+     rather than stopping dead */
+  --ease-liquid: cubic-bezier(0.22, 1.15, 0.32, 1);
+
   color-scheme: dark;
 }
 
@@ -96,5 +100,15 @@ body {
   }
   .table-base tr:last-child td {
     @apply border-b-0;
+  }
+}
+
+/* the drawer's flourishes are decoration; honor a request for less motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
