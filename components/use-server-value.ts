@@ -8,6 +8,13 @@ import { traceClient } from "@/lib/trace";
 // ever answering and going back to the server for the truth.
 const CONFIRM_TIMEOUT_MS = 8000;
 
+// The action's own response carries a re-render, but React only processes that
+// update at transition priority -- and on this app it sometimes sits unhandled
+// until an unrelated click bumps priority, leaving the rest of the page (the
+// Daily Budget, the totals) showing pre-edit numbers. An explicit refresh is
+// its own update and does not depend on that one being picked up.
+const NUDGE_MS = 500;
+
 let commitSeq = 0;
 
 /**
@@ -49,9 +56,15 @@ export function useServerValue<T>(value: T, label = "value") {
     traceClient("committed", { label, value });
   }, [label, value]);
 
+  // `sent` is a fresh object per commit, so both timers restart on every edit
+  // and are cleared the moment the server's own render confirms it.
   useEffect(() => {
-    if (!saving) return;
-    const timer = setTimeout(() => {
+    if (!sent) return;
+    const nudge = setTimeout(() => {
+      traceClient("nudge", { label });
+      router.refresh();
+    }, NUDGE_MS);
+    const giveUp = setTimeout(() => {
       // the write never answered: drop our copy and refetch, so what shows is
       // what the server has rather than what we hoped it took
       traceClient("timeout", { label, afterMs: CONFIRM_TIMEOUT_MS });
@@ -59,8 +72,11 @@ export function useServerValue<T>(value: T, label = "value") {
       setSent(null);
       router.refresh();
     }, CONFIRM_TIMEOUT_MS);
-    return () => clearTimeout(timer);
-  }, [saving, router, label]);
+    return () => {
+      clearTimeout(nudge);
+      clearTimeout(giveUp);
+    };
+  }, [sent, router, label]);
 
   function commit(next: T, write: () => unknown) {
     const id = ++commitSeq;
