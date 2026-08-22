@@ -8,6 +8,7 @@ import { Money, ProgressBar } from "@/components/ui";
 import { SalaryReceivedToggle } from "@/components/toggles";
 import { StatusCell } from "@/components/bill-tables";
 import { EditableBalance } from "@/components/editable-balance";
+import { EditablePlanAmount } from "@/components/editable-plan-amount";
 import { ExtraIncomeForm } from "@/components/forms";
 import { ExtraIncomeTable } from "@/components/extra-income-table";
 import { ActiveBucketsTable } from "@/components/active-buckets-table";
@@ -171,14 +172,24 @@ export default async function Dashboard() {
                 Salary ({shortDateLabel(payDates.mid)})
                 <SalaryReceivedToggle month={month} which="mid" received={plan.salaryMidReceived} />
               </span>
-              <Money cents={plan.salaryMidCents} tone={plan.salaryMidReceived ? "muted" : "plain"} />
+              <EditablePlanAmount
+                month={month}
+                field="salaryMid"
+                cents={plan.salaryMidCents}
+                tone={plan.salaryMidReceived ? "muted" : "plain"}
+              />
             </div>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-ink-2">
                 Salary ({shortDateLabel(payDates.end)})
                 <SalaryReceivedToggle month={month} which="end" received={plan.salaryEndReceived} />
               </span>
-              <Money cents={plan.salaryEndCents} tone={plan.salaryEndReceived ? "muted" : "plain"} />
+              <EditablePlanAmount
+                month={month}
+                field="salaryEnd"
+                cents={plan.salaryEndCents}
+                tone={plan.salaryEndReceived ? "muted" : "plain"}
+              />
             </div>
             <div className="flex justify-between">
               <span className="text-ink-2">Extra Income</span>
@@ -218,9 +229,9 @@ export default async function Dashboard() {
               <span className="text-ink-2">Recurring</span>
               <Money cents={-s.recurringOutOfPocketRemainingCents} tone="neg" />
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-center justify-between">
               <span className="text-ink-2">Savings</span>
-              <Money cents={-plan.savingsCents} tone="neg" />
+              <EditablePlanAmount month={month} field="savings" cents={plan.savingsCents} negated tone="neg" />
             </div>
             <div className="mt-1.5 flex justify-between border-t border-line pt-2">
               <span className="font-semibold">Total Expenses</span>

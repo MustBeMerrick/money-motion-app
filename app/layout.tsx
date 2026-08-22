@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Sidebar } from "@/components/sidebar";
 import { FloatingDailyBudget } from "@/components/floating-daily-budget";
@@ -13,6 +13,16 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "MoneyMotion",
   description: "Simple. Smart. In Motion.",
+};
+
+// iOS Safari zooms in on a focused field and never zooms back out; a 16px
+// font alone doesn't stop it for the narrow click-to-edit inputs. Capping the
+// scale does. Pinch-zoom still works — Safari has ignored userScalable since
+// iOS 10 — so this only removes the automatic zoom.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export const dynamic = "force-dynamic";

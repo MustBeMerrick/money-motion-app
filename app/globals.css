@@ -103,6 +103,25 @@ body {
   }
 }
 
+/* "Bill View: Off" empties the calendar cells down to bare dates; the day
+   list under the mobile calendar is not marked .cal-bill, so it stays. */
+[data-bills="off"] .cal-bill {
+  display: none;
+}
+
+/* iOS Safari zooms the page in whenever a focused field's text is under 16px,
+   and never zooms back out. Touch viewports get bumped to 16px; the desktop
+   14px fields are fine with a mouse. Unlayered + !important so it beats the
+   Tailwind text-* utilities these fields carry, including any set inline on a
+   component. */
+@media (max-width: 1023px), (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* the drawer's flourishes are decoration; honor a request for less motion */
 @media (prefers-reduced-motion: reduce) {
   *,

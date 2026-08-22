@@ -95,7 +95,14 @@ export async function saveAccount(formData: FormData) {
     sortOrder: f.sortOrder,
   };
   if (f.id) {
+    // a bill stores its account's color, not the account id, so recoloring an
+    // account has to carry its bills along or they point at a color no account
+    // owns any more — and silently lose their account label everywhere
+    const prev = await prisma.account.findUnique({ where: { id: f.id }, select: { color: true } });
     await prisma.account.update({ where: { id: f.id }, data });
+    if (prev?.color && data.color && prev.color !== data.color) {
+      await prisma.bill.updateMany({ where: { color: prev.color }, data: { color: data.color } });
+    }
   } else {
     await prisma.account.create({ data });
   }
@@ -275,28 +282,28 @@ export async function deleteBucket(id: string) {
 
 // --- month plan ---
 
-const monthPlanSchema = z.object({
-  month: isoMonth,
-  salaryMid: cents,
-  salaryMidReceived: checkbox,
-  salaryEnd: cents,
-  salaryEndReceived: checkbox,
-  savings: cents,
-});
+// Salary and savings are edited in place on the dashboard, one field at a
+// time, so the whole month plan never round-trips through a form.
+const planField = z.enum(["salaryMid", "salaryEnd", "savings"]);
+const PLAN_COLUMN = {
+  salaryMid: "salaryMidCents",
+  salaryEnd: "salaryEndCents",
+  savings: "savingsCents",
+} as const;
 
-export async function saveMonthPlan(formData: FormData) {
-  const f = monthPlanSchema.parse(fields(formData));
-  const data = {
-    salaryMidCents: f.salaryMid,
-    salaryMidReceived: f.salaryMidReceived,
-    salaryEndCents: f.salaryEnd,
-    salaryEndReceived: f.salaryEndReceived,
-    savingsCents: f.savings,
-  };
+export async function updateMonthPlanAmount(
+  month: string,
+  field: z.infer<typeof planField>,
+  amountCents: number,
+) {
+  isoMonth.parse(month);
+  planField.parse(field);
+  z.number().int().parse(amountCents);
+  const column = PLAN_COLUMN[field];
   await prisma.monthPlan.upsert({
-    where: { month: f.month },
-    create: { month: f.month, ...data },
-    update: data,
+    where: { month },
+    create: { month, [column]: amountCents },
+    update: { [column]: amountCents },
   });
   refresh();
 }
