@@ -35,6 +35,13 @@ let commitSeq = 0;
  * used to dim the field forever with no way back. Now it times out, re-reads
  * from the server, and shows whatever actually got written.
  */
+// Next throws UnrecognizedActionError when the action id in this page's bundle
+// is missing from the running server -- i.e. the server was redeployed under us.
+function isStaleDeployment(error: unknown): boolean {
+  const text = String(error);
+  return text.includes("Server Action") && text.includes("was not found on the server");
+}
+
 export function useServerValue<T>(value: T, label = "value") {
   const router = useRouter();
   const [sent, setSent] = useState<{ v: T } | null>(null);
@@ -96,6 +103,10 @@ export function useServerValue<T>(value: T, label = "value") {
       } catch (error) {
         traceClient("rejected", { label, id, ms: Date.now() - started, error: String(error) });
         setSent(null);
+        // A page served by the previous deploy holds action ids the new build
+        // does not have, so every save is rejected until it is reloaded --
+        // which looks exactly like "the app stopped saving". Get the new build.
+        if (isStaleDeployment(error)) window.location.reload();
       } finally {
         setSaving(false);
       }
