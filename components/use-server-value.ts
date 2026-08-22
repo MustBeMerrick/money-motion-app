@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { traceClient } from "@/lib/trace";
 
@@ -47,7 +47,6 @@ export function useServerValue<T>(value: T, label = "value") {
   const [sent, setSent] = useState<{ v: T } | null>(null);
   const [saving, setSaving] = useState(false);
   const [seen, setSeen] = useState(value);
-  const [, startTransition] = useTransition();
 
   // fresh props from the server — ours has served its purpose
   if (!Object.is(seen, value)) {
@@ -96,7 +95,14 @@ export function useServerValue<T>(value: T, label = "value") {
     traceClient("send", { label, id, from: value, to: next });
     setSent({ v: next });
     setSaving(true);
-    startTransition(async () => {
+    // Deliberately NOT inside startTransition. Dispatching a server action from
+    // within a transition attaches the response's router update to that
+    // transition, and transition work is interruptible -- which is how an
+    // arrived payload ends up sitting unrendered until an unrelated click
+    // bumps priority. Called from a plain handler, Next schedules that update
+    // on its own. We track pending ourselves, so we need nothing useTransition
+    // offers.
+    void (async () => {
       try {
         await write();
         traceClient("resolved", { label, id, ms: Date.now() - started });
@@ -110,7 +116,7 @@ export function useServerValue<T>(value: T, label = "value") {
       } finally {
         setSaving(false);
       }
-    });
+    })();
   }
 
   return [sent ? sent.v : value, commit, saving] as const;
