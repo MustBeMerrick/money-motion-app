@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useSyncExternalStore, useTransition } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Check, Delete } from "lucide-react";
 import { formatCents, parseDollarsToCents } from "@/lib/core/money";
+import { useServerValue } from "./use-server-value";
 
 const COARSE = "(pointer: coarse)";
 
@@ -67,7 +68,7 @@ export function AmountField({
   className = "",
 }: {
   cents: number;
-  onCommit: (nextCents: number) => void;
+  onCommit: (nextCents: number) => unknown;
   negated?: boolean;
   allowNegative?: boolean;
   color: string;
@@ -75,13 +76,15 @@ export function AmountField({
 }) {
   const [value, setValue] = useState<string | null>(null);
   const [fresh, setFresh] = useState(true);
-  const [pending, startTransition] = useTransition();
+  // the amount we last saved stays on screen until the server re-renders with
+  // it, so a slow (or dropped) revalidation never repaints the old number
+  const [savedCents, save, pending] = useServerValue(cents);
   const coarse = useCoarsePointer();
   const editing = value !== null;
 
   // edit in the same terms the row displays: savings reads -$2,000.00, so the
   // field opens on -2000.00 rather than dropping the sign mid-edit
-  const displayCents = negated ? -cents : cents;
+  const displayCents = negated ? -savedCents : savedCents;
 
   function open() {
     setValue((displayCents / 100).toFixed(2));
@@ -93,8 +96,8 @@ export function AmountField({
     const parsed = raw === null ? null : parseDollarsToCents(raw);
     if (parsed === null) return;
     const next = negated ? Math.abs(parsed) : parsed;
-    if (next === cents) return;
-    startTransition(() => onCommit(next));
+    if (next === savedCents) return;
+    save(next, () => onCommit(next));
   }
 
   function press(key: string) {
@@ -134,17 +137,26 @@ export function AmountField({
         {coarse && (
           <>
             {/* tapping anywhere off the keypad saves, the same as tapping ✓ */}
-            <div className="fixed inset-0 z-40" onClick={() => commit(value)} />
+            <div className="fixed inset-0 z-40" onPointerDown={() => commit(value)} />
             <div
-              className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 gap-px border-t border-line-2 bg-line-2 pb-[env(safe-area-inset-bottom)]"
-              // keep the field focused (and the caret visible) while tapping keys
+              className="fixed inset-x-0 bottom-0 z-50 grid touch-none grid-cols-4 gap-px border-t border-line-2 bg-line-2 select-none pb-[env(safe-area-inset-bottom)]"
+              // keep the field focused (and the caret visible) while tapping the
+              // 1px seams between keys
               onPointerDown={(e) => e.preventDefault()}
             >
               {KEYS.map((k) => (
                 <button
                   key={k.press}
                   type="button"
-                  onClick={() => (allowNegative || k.press !== "sign" ? press(k.press) : undefined)}
+                  // act on the press itself: preventing pointerdown's default
+                  // is what holds focus, but it also costs Safari's synthesised
+                  // click, and a tap that drifts a few pixels loses it anyway —
+                  // either way the click landed on the dismiss layer instead and
+                  // shut the keypad
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    if (allowNegative || k.press !== "sign") press(k.press);
+                  }}
                   className={`flex h-14 items-center justify-center bg-surface text-xl font-semibold active:bg-surface-2 ${
                     k.muted ? "text-ink-2" : "text-ink"
                   } ${!allowNegative && k.press === "sign" ? "opacity-30" : ""}`}
@@ -154,7 +166,10 @@ export function AmountField({
               ))}
               <button
                 type="button"
-                onClick={() => commit(value)}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  commit(value);
+                }}
                 className="col-span-2 flex h-14 items-center justify-center bg-gradient-to-r from-forest to-lime text-[#08130a] active:opacity-90"
                 aria-label="Save amount"
               >

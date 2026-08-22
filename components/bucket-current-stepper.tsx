@@ -1,17 +1,19 @@
 "use client";
 
-import { useTransition } from "react";
 import { Minus, Plus } from "lucide-react";
 import { adjustBucketPrincipal } from "@/app/actions";
 import { Money } from "@/components/ui";
+import { useServerValue } from "@/components/use-server-value";
 
 const STEP_CENTS = 100;
 
 export function BucketCurrentStepper({ bucketId, cents }: { bucketId: string; cents: number }) {
-  const [pending, startTransition] = useTransition();
+  // steps read off what is on screen, so a second tap before the server has
+  // answered still moves by another dollar instead of re-sending the first
+  const [shown, save, pending] = useServerValue(cents);
 
   function adjust(delta: number) {
-    startTransition(() => adjustBucketPrincipal(bucketId, delta));
+    save(shown + delta, () => adjustBucketPrincipal(bucketId, delta));
   }
 
   return (
@@ -19,17 +21,15 @@ export function BucketCurrentStepper({ bucketId, cents }: { bucketId: string; ce
       <button
         type="button"
         aria-label="Decrease by $1"
-        disabled={pending}
         onClick={() => adjust(-STEP_CENTS)}
         className="btn cursor-pointer px-1 py-0.5"
       >
         <Minus size={11} />
       </button>
-      <Money cents={cents} />
+      <Money cents={shown} />
       <button
         type="button"
         aria-label="Increase by $1"
-        disabled={pending}
         onClick={() => adjust(STEP_CENTS)}
         className="btn cursor-pointer px-1 py-0.5"
       >
