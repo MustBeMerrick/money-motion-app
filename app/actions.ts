@@ -1,7 +1,6 @@
 "use server";
 
 import { refresh as refreshRouter } from "next/cache";
-import { traceServer } from "@/lib/trace";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseDollarsToCents } from "@/lib/core/money";
@@ -30,23 +29,7 @@ const checkbox = z
 // also dirties every previously visited page, re-rendering them on the way
 // back for no gain.
 function refresh() {
-  traceServer("refresh");
   refreshRouter();
-}
-
-// Temporary instrumentation -- see lib/trace.ts. Wraps an action so the log
-// shows it arrived, what it was asked to write, and whether it finished.
-async function traced<T>(name: string, detail: Record<string, unknown>, fn: () => Promise<T>) {
-  const started = Date.now();
-  traceServer("action.start", { name, ...detail });
-  try {
-    const out = await fn();
-    traceServer("action.ok", { name, ms: Date.now() - started });
-    return out;
-  } catch (error) {
-    traceServer("action.fail", { name, ms: Date.now() - started, error: String(error) });
-    throw error;
-  }
 }
 
 function fields(formData: FormData): Record<string, string> {
@@ -66,15 +49,13 @@ export async function setBillStatus(
   field: "hit" | "paid",
   value: boolean,
 ) {
-  return traced("setBillStatus", { billId, date, field, value }, async () => {
-    isoDate.parse(date);
-    await prisma.billOccurrence.upsert({
-      where: { billId_date: { billId, date } },
-      create: { billId, date, [field]: value },
-      update: { [field]: value },
-    });
-    refresh();
+  isoDate.parse(date);
+  await prisma.billOccurrence.upsert({
+    where: { billId_date: { billId, date } },
+    create: { billId, date, [field]: value },
+    update: { [field]: value },
   });
+  refresh();
 }
 
 /** Tick or clear every charge of a bill in one month — the header checkbox. */
@@ -135,11 +116,9 @@ export async function saveAccount(formData: FormData) {
 }
 
 export async function updateAccountBalance(id: string, balanceCents: number) {
-  return traced("updateAccountBalance", { id, balanceCents }, async () => {
-    z.number().int().parse(balanceCents);
-    await prisma.account.update({ where: { id }, data: { balanceCents } });
-    refresh();
-  });
+  z.number().int().parse(balanceCents);
+  await prisma.account.update({ where: { id }, data: { balanceCents } });
+  refresh();
 }
 
 export async function deleteAccount(id: string) {
@@ -290,13 +269,11 @@ export async function saveBucket(formData: FormData) {
 // a flat amount shifts today's (and every future) value by exactly that
 // amount without touching the rate or start date.
 export async function adjustBucketPrincipal(id: string, deltaCents: number) {
-  return traced("adjustBucketPrincipal", { id, deltaCents }, async () => {
-    await prisma.piggyBucket.update({
-      where: { id },
-      data: { principalCents: { increment: deltaCents } },
-    });
-    refresh();
+  await prisma.piggyBucket.update({
+    where: { id },
+    data: { principalCents: { increment: deltaCents } },
   });
+  refresh();
 }
 
 export async function setBucketArchived(id: string, archived: boolean) {
@@ -325,27 +302,23 @@ export async function updateMonthPlanAmount(
   field: z.infer<typeof planField>,
   amountCents: number,
 ) {
-  return traced("updateMonthPlanAmount", { month, field, amountCents }, async () => {
-    isoMonth.parse(month);
-    planField.parse(field);
-    z.number().int().parse(amountCents);
-    const column = PLAN_COLUMN[field];
-    await prisma.monthPlan.upsert({
-      where: { month },
-      create: { month, [column]: amountCents },
-      update: { [column]: amountCents },
-    });
-    refresh();
+  isoMonth.parse(month);
+  planField.parse(field);
+  z.number().int().parse(amountCents);
+  const column = PLAN_COLUMN[field];
+  await prisma.monthPlan.upsert({
+    where: { month },
+    create: { month, [column]: amountCents },
+    update: { [column]: amountCents },
   });
+  refresh();
 }
 
 export async function setSalaryReceived(month: string, which: "mid" | "end", received: boolean) {
-  return traced("setSalaryReceived", { month, which, received }, async () => {
-    isoMonth.parse(month);
-    await prisma.monthPlan.update({
-      where: { month },
-      data: which === "mid" ? { salaryMidReceived: received } : { salaryEndReceived: received },
-    });
-    refresh();
+  isoMonth.parse(month);
+  await prisma.monthPlan.update({
+    where: { month },
+    data: which === "mid" ? { salaryMidReceived: received } : { salaryEndReceived: received },
   });
+  refresh();
 }
