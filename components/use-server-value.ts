@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { traceClient } from "@/lib/trace";
 
@@ -57,10 +57,15 @@ export function useServerValue<T>(value: T, label = "value") {
   }, [label, value]);
 
   // `sent` is a fresh object per commit, so both timers restart on every edit
-  // and are cleared the moment the server's own render confirms it.
+  // and are cleared the moment the server's own render confirms it. The ref is
+  // belt and braces: a timer that somehow outlives its cleanup still checks
+  // whether this edit is genuinely unconfirmed before spending a refresh on it.
+  const pendingRef = useRef(sent);
   useEffect(() => {
+    pendingRef.current = sent;
     if (!sent) return;
     const nudge = setTimeout(() => {
+      if (pendingRef.current !== sent) return;
       traceClient("nudge", { label });
       router.refresh();
     }, NUDGE_MS);
