@@ -12,6 +12,7 @@ import { EditablePlanAmount } from "@/components/editable-plan-amount";
 import { ExtraIncomeForm } from "@/components/forms";
 import { ExtraIncomeTable } from "@/components/extra-income-table";
 import { ActiveBucketsTable } from "@/components/active-buckets-table";
+import { TraceValue } from "@/components/trace-value";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,7 @@ export default async function Dashboard() {
             <div className="text-3xl font-bold text-accent tabular-nums">
               {formatCents(s.dailyBudgetCents)}
             </div>
+            <TraceValue label="dailyBudget" value={s.dailyBudgetCents} />
             {s.tomorrowBudgetCents !== null && (
               <div className="text-base font-semibold text-ink-3 tabular-nums" title="Tomorrow's daily budget">
                 {formatCents(s.tomorrowBudgetCents)}

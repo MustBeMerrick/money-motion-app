@@ -43,6 +43,12 @@ export function useServerValue<T>(value: T, label = "value") {
     setSaving(false);
   }
 
+  // effects run only after a commit, so a "confirmed" (render) with no
+  // "committed" after it means React built the new tree and never showed it
+  useEffect(() => {
+    traceClient("committed", { label, value });
+  }, [label, value]);
+
   useEffect(() => {
     if (!saving) return;
     const timer = setTimeout(() => {
