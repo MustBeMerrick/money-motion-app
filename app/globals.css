@@ -122,6 +122,45 @@ body {
   }
 }
 
+/* Loading cartoon: the brand mark bobs while coins hop up one after another,
+   as if the month is being counted out. Pure CSS so it starts painting with
+   the first frame — no JS has to hydrate first. */
+@keyframes mm-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+@keyframes mm-shadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleX(0.7);
+    opacity: 0.2;
+  }
+}
+
+@keyframes mm-coin-hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  20% {
+    transform: translateY(-14px) scaleY(1.15);
+  }
+  40% {
+    transform: translateY(0) scaleY(0.85);
+  }
+}
+
 /* the drawer's flourishes are decoration; honor a request for less motion */
 @media (prefers-reduced-motion: reduce) {
   *,

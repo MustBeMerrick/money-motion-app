@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { Suspense } from "react";
 import { Sidebar } from "@/components/sidebar";
-import { FloatingDailyBudget } from "@/components/floating-daily-budget";
-import { getDashboardData } from "@/lib/data";
+import { DailyBudgetSlot } from "@/components/daily-budget-slot";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,20 +27,16 @@ export const viewport: Viewport = {
 
 export const dynamic = "force-dynamic";
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const { snapshot } = await getDashboardData();
-
   return (
     <html lang="en" className={inter.variable}>
       <body>
         <Sidebar />
-        <FloatingDailyBudget
-          dailyBudgetCents={snapshot.dailyBudgetCents}
-          tomorrowBudgetCents={snapshot.tomorrowBudgetCents}
-          plannedNetCents={snapshot.plannedNetCents}
-        />
+        <Suspense fallback={null}>
+          <DailyBudgetSlot />
+        </Suspense>
         <main className="min-h-screen px-4 pt-5 pb-7 lg:ml-60 lg:px-8 lg:pt-7">{children}</main>
       </body>
     </html>
