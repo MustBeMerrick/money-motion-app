@@ -15,7 +15,7 @@ function CheckBox({
   onToggle: (next: boolean) => unknown;
   label: string;
 }) {
-  const [shown, save] = useServerValue(checked);
+  const [shown, save] = useServerValue(checked, `check:${label}`);
   return (
     <button
       type="button"

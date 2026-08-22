@@ -2,10 +2,13 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { traceClient } from "@/lib/trace";
 
 // How long to keep showing a value as "saving" before giving up on the write
 // ever answering and going back to the server for the truth.
 const CONFIRM_TIMEOUT_MS = 8000;
+
+let commitSeq = 0;
 
 /**
  * A value the server owns, edited from the client.
@@ -25,7 +28,7 @@ const CONFIRM_TIMEOUT_MS = 8000;
  * used to dim the field forever with no way back. Now it times out, re-reads
  * from the server, and shows whatever actually got written.
  */
-export function useServerValue<T>(value: T) {
+export function useServerValue<T>(value: T, label = "value") {
   const router = useRouter();
   const [sent, setSent] = useState<{ v: T } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -34,6 +37,7 @@ export function useServerValue<T>(value: T) {
 
   // fresh props from the server — ours has served its purpose
   if (!Object.is(seen, value)) {
+    if (sent) traceClient("confirmed", { label, was: seen, now: value, sent: sent.v });
     setSeen(value);
     setSent(null);
     setSaving(false);
@@ -44,20 +48,26 @@ export function useServerValue<T>(value: T) {
     const timer = setTimeout(() => {
       // the write never answered: drop our copy and refetch, so what shows is
       // what the server has rather than what we hoped it took
+      traceClient("timeout", { label, afterMs: CONFIRM_TIMEOUT_MS });
       setSaving(false);
       setSent(null);
       router.refresh();
     }, CONFIRM_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [saving, router]);
+  }, [saving, router, label]);
 
   function commit(next: T, write: () => unknown) {
+    const id = ++commitSeq;
+    const started = Date.now();
+    traceClient("send", { label, id, from: value, to: next });
     setSent({ v: next });
     setSaving(true);
     startTransition(async () => {
       try {
         await write();
-      } catch {
+        traceClient("resolved", { label, id, ms: Date.now() - started });
+      } catch (error) {
+        traceClient("rejected", { label, id, ms: Date.now() - started, error: String(error) });
         setSent(null);
       } finally {
         setSaving(false);
