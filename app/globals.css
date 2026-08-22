@@ -25,6 +25,10 @@
   --warn: #fbbf24;
   --info: #38bdf8;
 
+  /* overshoots slightly at the end so drawer items settle like liquid
+     rather than stopping dead */
+  --ease-liquid: cubic-bezier(0.22, 1.15, 0.32, 1);
+
   color-scheme: dark;
 }
 
@@ -96,5 +100,73 @@ body {
   }
   .table-base tr:last-child td {
     @apply border-b-0;
+  }
+}
+
+/* "Bill View: Off" empties the calendar cells down to bare dates; the day
+   list under the mobile calendar is not marked .cal-bill, so it stays. */
+[data-bills="off"] .cal-bill {
+  display: none;
+}
+
+/* iOS Safari zooms the page in whenever a focused field's text is under 16px,
+   and never zooms back out. Touch viewports get bumped to 16px; the desktop
+   14px fields are fine with a mouse. Unlayered + !important so it beats the
+   Tailwind text-* utilities these fields carry, including any set inline on a
+   component. */
+@media (max-width: 1023px), (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Loading cartoon: the brand mark bobs while coins hop up one after another,
+   as if the month is being counted out. Pure CSS so it starts painting with
+   the first frame — no JS has to hydrate first. */
+@keyframes mm-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+@keyframes mm-shadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scaleX(0.7);
+    opacity: 0.2;
+  }
+}
+
+@keyframes mm-coin-hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  20% {
+    transform: translateY(-14px) scaleY(1.15);
+  }
+  40% {
+    transform: translateY(0) scaleY(0.85);
+  }
+}
+
+/* the drawer's flourishes are decoration; honor a request for less motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
