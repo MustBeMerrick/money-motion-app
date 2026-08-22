@@ -1,11 +1,22 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Check, Delete } from "lucide-react";
 import { formatCents, parseDollarsToCents } from "@/lib/core/money";
 import { useServerValue } from "./use-server-value";
 
 const COARSE = "(pointer: coarse)";
+
+// Clearance between the bottom row of keys and the screen edge, so the pad
+// doesn't sit under the home indicator / Siri swipe area.
+const PAD_LIFT = "0.75rem";
+// 4 rows of h-14, the 1px seams between them, the top border, then the lift and
+// whatever the device reserves at the bottom. The dismiss layer stops here, and
+// the page is padded by this much while editing so a low field can always be
+// scrolled clear of the pad.
+const PAD_HEIGHT = `calc(14rem + 4px + ${PAD_LIFT} + env(safe-area-inset-bottom))`;
+// breathing room between the field being edited and the top of the pad
+const FIELD_GAP = 12;
 
 function subscribe(onChange: () => void) {
   const mq = window.matchMedia(COARSE);
@@ -74,6 +85,8 @@ export function AmountField({
   color: string;
   className?: string;
 }) {
+  const inputEl = useRef<HTMLInputElement | null>(null);
+  const padEl = useRef<HTMLDivElement | null>(null);
   const [value, setValue] = useState<string | null>(null);
   const [fresh, setFresh] = useState(true);
   // the amount we last saved stays on screen until the server re-renders with
@@ -100,6 +113,28 @@ export function AmountField({
     save(next, () => onCommit(next));
   }
 
+  // The pad covers the bottom of the screen, so a field low on the page ends up
+  // behind it. Pad the document by the pad's height first -- a field near the
+  // end of the page would otherwise have nowhere left to scroll to -- then lift
+  // the field clear of the keys.
+  useEffect(() => {
+    const input = inputEl.current;
+    const pad = padEl.current;
+    if (!editing || !coarse || !input || !pad) return;
+
+    const padHeight = pad.getBoundingClientRect().height;
+    const previousPadding = document.body.style.paddingBottom;
+    document.body.style.paddingBottom = `${padHeight}px`;
+
+    const hidden =
+      input.getBoundingClientRect().bottom + FIELD_GAP - pad.getBoundingClientRect().top;
+    if (hidden > 0) window.scrollBy({ top: hidden, behavior: "smooth" });
+
+    return () => {
+      document.body.style.paddingBottom = previousPadding;
+    };
+  }, [editing, coarse]);
+
   function press(key: string) {
     setValue((current) => {
       const v = current ?? "";
@@ -122,7 +157,13 @@ export function AmountField({
           // focus without preventScroll pans the page to the field, and on iOS
           // that pan resizes the visual viewport (Safari's bottom bar) out from
           // under the keypad -- taps then land a row off, or past its edge
-          ref={(el) => el?.focus({ preventScroll: true })}
+          ref={(el) => {
+            inputEl.current = el;
+            // preventScroll because the browser's own pan resizes the visual
+            // viewport out from under the keypad, and taps then land a row off;
+            // the effect above does the scrolling deliberately instead
+            if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+          }}
           value={value}
           inputMode={coarse ? "none" : "decimal"}
           className="input w-32 px-2 py-1 text-right text-sm lg:w-28 lg:py-0.5"
@@ -144,11 +185,14 @@ export function AmountField({
                 that misses a key by a few pixels does nothing instead of
                 dismissing -- 4 rows of h-14, their seams, and the top border. */}
             <div
-              className="fixed inset-x-0 top-0 z-40 bottom-[calc(14rem+4px+env(safe-area-inset-bottom))]"
+              className="fixed inset-x-0 top-0 z-40"
+              style={{ bottom: PAD_HEIGHT }}
               onPointerDown={() => commit(value)}
             />
             <div
-              className="fixed inset-x-0 bottom-0 z-50 grid touch-none grid-cols-4 gap-px border-t border-line-2 bg-line-2 select-none pb-[env(safe-area-inset-bottom)]"
+              ref={padEl}
+              className="fixed inset-x-0 bottom-0 z-50 grid touch-none grid-cols-4 gap-px border-t border-line-2 bg-line-2 select-none"
+              style={{ paddingBottom: `calc(${PAD_LIFT} + env(safe-area-inset-bottom))` }}
               // keep the field focused (and the caret visible) while tapping the
               // 1px seams between keys
               onPointerDown={(e) => e.preventDefault()}
