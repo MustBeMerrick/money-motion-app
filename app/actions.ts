@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { refresh as refreshRouter } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseDollarsToCents } from "@/lib/core/money";
@@ -22,8 +22,14 @@ const checkbox = z
   .optional()
   .transform((v) => v === "on" || v === "true");
 
+// Nothing here is cached -- every route is force-dynamic and reads SQLite on
+// each render -- so there is no cache entry for revalidatePath to invalidate.
+// What the client actually needs is the current route's RSC payload refetched
+// in the action's own response, which is what refresh() is for. revalidatePath
+// also dirties every previously visited page, re-rendering them on the way
+// back for no gain.
 function refresh() {
-  revalidatePath("/", "layout");
+  refreshRouter();
 }
 
 function fields(formData: FormData): Record<string, string> {

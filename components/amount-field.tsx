@@ -119,7 +119,10 @@ export function AmountField({
     return (
       <>
         <input
-          autoFocus
+          // focus without preventScroll pans the page to the field, and on iOS
+          // that pan resizes the visual viewport (Safari's bottom bar) out from
+          // under the keypad -- taps then land a row off, or past its edge
+          ref={(el) => el?.focus({ preventScroll: true })}
           value={value}
           inputMode={coarse ? "none" : "decimal"}
           className="input w-32 px-2 py-1 text-right text-sm lg:w-28 lg:py-0.5"
@@ -136,8 +139,14 @@ export function AmountField({
         />
         {coarse && (
           <>
-            {/* tapping anywhere off the keypad saves, the same as tapping ✓ */}
-            <div className="fixed inset-0 z-40" onPointerDown={() => commit(value)} />
+            {/* tapping the page above the keypad saves, the same as tapping ✓.
+                It stops short of the pad rather than sitting under it, so a tap
+                that misses a key by a few pixels does nothing instead of
+                dismissing -- 4 rows of h-14, their seams, and the top border. */}
+            <div
+              className="fixed inset-x-0 top-0 z-40 bottom-[calc(14rem+4px+env(safe-area-inset-bottom))]"
+              onPointerDown={() => commit(value)}
+            />
             <div
               className="fixed inset-x-0 bottom-0 z-50 grid touch-none grid-cols-4 gap-px border-t border-line-2 bg-line-2 select-none pb-[env(safe-area-inset-bottom)]"
               // keep the field focused (and the caret visible) while tapping the
