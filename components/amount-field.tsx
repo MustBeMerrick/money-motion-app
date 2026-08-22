@@ -9,7 +9,7 @@ const COARSE = "(pointer: coarse)";
 
 // Clearance between the bottom row of keys and the screen edge, so the pad
 // doesn't sit under the home indicator / Siri swipe area.
-const PAD_LIFT = "0.75rem";
+const PAD_LIFT = "2.5rem";
 // 4 rows of h-14, the 1px seams between them, the top border, then the lift and
 // whatever the device reserves at the bottom. The dismiss layer stops here, and
 // the page is padded by this much while editing so a low field can always be
