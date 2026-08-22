@@ -8,12 +8,20 @@ import { traceClient } from "@/lib/trace";
 // ever answering and going back to the server for the truth.
 const CONFIRM_TIMEOUT_MS = 8000;
 
-// The action's own response carries a re-render, but React only processes that
-// update at transition priority -- and on this app it sometimes sits unhandled
-// until an unrelated click bumps priority, leaving the rest of the page (the
-// Daily Budget, the totals) showing pre-edit numbers. An explicit refresh is
-// its own update and does not depend on that one being picked up.
-const NUDGE_MS = 500;
+// The payload arrives in ~60ms, but React can leave the update unprocessed for
+// seconds -- until any click sweeps it up. Both the action's own re-render and
+// router.refresh() schedule at transition priority, which React is free to
+// defer; a click is discrete priority, which forces a render pass that picks up
+// everything pending. So escalate rather than refetching blindly:
+//
+//   FLUSH  a plain setState here is default priority, so React must render --
+//          and that pass collects the payload already sitting in its queue.
+//          No network, and it is what a click does for you.
+//   NUDGE  the flush found nothing to collect, so the payload really is
+//          missing: go and fetch it.
+//   GIVE UP  nothing answered at all; show what the server has.
+const FLUSH_MS = 400;
+const NUDGE_MS = 1200;
 
 let commitSeq = 0;
 
@@ -46,6 +54,8 @@ export function useServerValue<T>(value: T, label = "value") {
   const router = useRouter();
   const [sent, setSent] = useState<{ v: T } | null>(null);
   const [saving, setSaving] = useState(false);
+  // bumped only to force a render pass; the value is never read
+  const [, setFlushes] = useState(0);
   const [seen, setSeen] = useState(value);
 
   // fresh props from the server — ours has served its purpose
@@ -70,6 +80,11 @@ export function useServerValue<T>(value: T, label = "value") {
   useEffect(() => {
     pendingRef.current = sent;
     if (!sent) return;
+    const flush = setTimeout(() => {
+      if (pendingRef.current !== sent) return;
+      traceClient("flush", { label });
+      setFlushes((n) => n + 1);
+    }, FLUSH_MS);
     const nudge = setTimeout(() => {
       if (pendingRef.current !== sent) return;
       traceClient("nudge", { label });
@@ -84,6 +99,7 @@ export function useServerValue<T>(value: T, label = "value") {
       router.refresh();
     }, CONFIRM_TIMEOUT_MS);
     return () => {
+      clearTimeout(flush);
       clearTimeout(nudge);
       clearTimeout(giveUp);
     };
