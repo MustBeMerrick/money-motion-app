@@ -1,6 +1,7 @@
 import { getBillsWithStatus } from "@/lib/data";
 import { monthOf, todayIso } from "@/lib/core/dates";
 import { BillBoards } from "@/components/bill-tables";
+import { DailyBudgetSlot } from "@/components/daily-budget-slot";
 
 export const dynamic = "force-dynamic";
 
@@ -9,11 +10,14 @@ export default async function AnnualBillsPage() {
   const bills = (await getBillsWithStatus(month)).filter((b) => b.frequency === "YEARLY");
 
   return (
-    <BillBoards
-      bills={bills}
-      month={month}
-      frequency="YEARLY"
-      note="Charged once a year on their due date."
-    />
+    <>
+      <DailyBudgetSlot />
+      <BillBoards
+        bills={bills}
+        month={month}
+        frequency="YEARLY"
+        note="Charged once a year on their due date."
+      />
+    </>
   );
 }

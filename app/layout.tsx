@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { RefreshProvider } from "@/lib/refresh-context";
 import { Sidebar } from "@/components/sidebar";
-import { DailyBudgetSlot } from "@/components/daily-budget-slot";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,18 +26,21 @@ export const viewport: Viewport = {
 
 export const dynamic = "force-dynamic";
 
-// The floating budget card is awaited inline rather than wrapped in Suspense.
-// A boundary here splits the refresh into a second, deferred chunk, and React
-// will not commit a transition render while any boundary inside it is still
-// waiting -- so a chunk that arrived late (or whose retry was never scheduled)
-// left the whole page rendered but unpainted until some unrelated click forced
-// a synchronous update. Traced on the deployed app in 67130de: rendered 7ms
-// after the payload landed, discarded, nothing committed for 5.3s.
+// The floating budget card is deliberately NOT rendered here any more.
 //
-// That applies just as much now that refreshes come from the client router:
-// they are dispatched inside startTransition (lib/refresh-context.tsx), which
-// is precisely the render a pending boundary gates. Costs the shell a few ms
-// of streaming; worth it to keep every edit painting when it lands.
+// A client refresh only re-renders the segments it marks stale, and Next 16
+// routes router.refresh() through the segment cache, which invalidates and
+// refetches per segment. The page segment comes back; this root layout does
+// not. Anything reading the database from a layout therefore shows whatever it
+// showed on first paint and never updates -- which is exactly what "I click a
+// bill and the daily budget doesn't move" was. Measured: a refresh request
+// carrying the current router state tree renders nothing at all server-side
+// and returns a 64-byte empty diff.
+//
+// So the card is rendered by each page that wants it (see DailyBudgetSlot).
+// getDashboardData is React-cache()d per request, so a page already reading it
+// pays nothing extra. Neither net-worth-app nor option-pilot-app fetches data
+// in a layout either.
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -47,7 +49,6 @@ export default function RootLayout({
       <body>
         <RefreshProvider>
           <Sidebar />
-          <DailyBudgetSlot />
           <main className="min-h-screen px-4 pt-5 pb-7 lg:ml-60 lg:px-8 lg:pt-7">{children}</main>
         </RefreshProvider>
       </body>

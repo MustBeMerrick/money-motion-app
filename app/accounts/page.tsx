@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui";
 import { AccountForm } from "@/components/forms";
 import { ConfirmDelete } from "@/components/modal";
 import { EditableBalance } from "@/components/editable-balance";
+import { DailyBudgetSlot } from "@/components/daily-budget-slot";
 
 export const dynamic = "force-dynamic";
 
@@ -51,30 +52,33 @@ export default async function AccountsPage() {
   const liquid = accounts.filter((a) => a.type !== "CREDIT");
   const credit = accounts.filter((a) => a.type === "CREDIT");
   return (
-    <div className="max-w-5xl">
-      <PageHeader title="Accounts" action={<AccountForm />} />
+    <>
+      <DailyBudgetSlot />
+      <div className="max-w-5xl">
+        <PageHeader title="Accounts" action={<AccountForm />} />
 
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold tracking-wider text-ink-3 uppercase">
-          Cash &amp; Bank
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {liquid.map((a) => (
-            <AccountCard key={a.id} account={a} />
-          ))}
-        </div>
-      </section>
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold tracking-wider text-ink-3 uppercase">
+            Cash &amp; Bank
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {liquid.map((a) => (
+              <AccountCard key={a.id} account={a} />
+            ))}
+          </div>
+        </section>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold tracking-wider text-ink-3 uppercase">
-          Credit Cards
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {credit.map((a) => (
-            <AccountCard key={a.id} account={a} />
-          ))}
-        </div>
-      </section>
-    </div>
+        <section>
+          <h2 className="mb-3 text-sm font-semibold tracking-wider text-ink-3 uppercase">
+            Credit Cards
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {credit.map((a) => (
+              <AccountCard key={a.id} account={a} />
+            ))}
+          </div>
+        </section>
+      </div>
+    </>
   );
 }
