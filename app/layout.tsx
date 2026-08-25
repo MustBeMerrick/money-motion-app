@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import { RefreshProvider } from "@/lib/refresh-context";
 import { Sidebar } from "@/components/sidebar";
@@ -28,10 +27,18 @@ export const viewport: Viewport = {
 
 export const dynamic = "force-dynamic";
 
-// Edits reach the screen by way of a client router.refresh() (see
-// lib/refresh-context.tsx), which is a router update React always commits --
-// so the budget card can stream in its own boundary again and the shell paints
-// without waiting on the dashboard query.
+// The floating budget card is awaited inline rather than wrapped in Suspense.
+// A boundary here splits the refresh into a second, deferred chunk, and React
+// will not commit a transition render while any boundary inside it is still
+// waiting -- so a chunk that arrived late (or whose retry was never scheduled)
+// left the whole page rendered but unpainted until some unrelated click forced
+// a synchronous update. Traced on the deployed app in 67130de: rendered 7ms
+// after the payload landed, discarded, nothing committed for 5.3s.
+//
+// That applies just as much now that refreshes come from the client router:
+// they are dispatched inside startTransition (lib/refresh-context.tsx), which
+// is precisely the render a pending boundary gates. Costs the shell a few ms
+// of streaming; worth it to keep every edit painting when it lands.
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -40,9 +47,7 @@ export default function RootLayout({
       <body>
         <RefreshProvider>
           <Sidebar />
-          <Suspense fallback={null}>
-            <DailyBudgetSlot />
-          </Suspense>
+          <DailyBudgetSlot />
           <main className="min-h-screen px-4 pt-5 pb-7 lg:ml-60 lg:px-8 lg:pt-7">{children}</main>
         </RefreshProvider>
       </body>
