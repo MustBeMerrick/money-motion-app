@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 import type { ExtraIncome } from "@prisma/client";
 import { deleteExtraIncome, reorderExtraIncome } from "@/app/actions";
+import { useScheduleRefresh } from "@/lib/refresh-context";
 import { Money } from "@/components/ui";
 import { ExtraIncomeForm } from "@/components/forms";
 import { ConfirmDelete } from "@/components/modal";
@@ -21,7 +22,8 @@ function reorder(list: ExtraIncome[], id: string, targetId: string): ExtraIncome
 export function ExtraIncomeTable({ extras }: { extras: ExtraIncome[] }) {
   const [rows, setRows] = useState(extras);
   const [dragId, setDragId] = useState<string | null>(null);
-  const [reordering, startTransition] = useTransition();
+  const scheduleRefresh = useScheduleRefresh();
+  const [reordering, setReordering] = useState(false);
   const rowEls = useRef(new Map<string, HTMLTableRowElement>());
 
   // keep local order in sync when the server data changes underneath us —
@@ -84,7 +86,10 @@ export function ExtraIncomeTable({ extras }: { extras: ExtraIncome[] }) {
       cleanup();
       if (!wasArmed) return;
       setDragId(null);
-      startTransition(() => reorderExtraIncome(latest.map((r) => r.id)));
+      setReordering(true);
+      void reorderExtraIncome(latest.map((r) => r.id))
+        .then(scheduleRefresh)
+        .finally(() => setReordering(false));
     }
 
     if (touch) {

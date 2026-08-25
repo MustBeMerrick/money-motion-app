@@ -6,6 +6,7 @@ import type { Account, Bill, BillFrequency, ExtraIncome, PiggyBucket } from "@pr
 import { WEEKDAY_NAMES } from "@/lib/core/dates";
 import { saveAccount, saveBill, saveBucket, saveExtraIncome } from "@/app/actions";
 import { parseDollarsToCents, splitHalfCents } from "@/lib/core/money";
+import { useScheduleRefresh } from "@/lib/refresh-context";
 import { useAccountColors } from "./account-colors-context";
 import { Modal } from "./modal";
 
@@ -87,6 +88,7 @@ function FormShell({
   action: (fd: FormData) => Promise<void>;
   children: (open: boolean) => React.ReactNode;
 }) {
+  const scheduleRefresh = useScheduleRefresh();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,6 +97,10 @@ function FormShell({
       await action(fd);
       setOpen(false);
       setError(null);
+      // React dispatches a form action inside its own transition, so the
+      // action response's re-render is deferrable the same way a chip tap's
+      // was. Ask the router for the new data instead.
+      scheduleRefresh();
     } catch {
       setError("Couldn't save — check the fields.");
     }

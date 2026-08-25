@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Check } from "lucide-react";
 import { setBillStatus, setBillStatusForMonth, setSalaryReceived } from "@/app/actions";
+import { useScheduleRefresh } from "@/lib/refresh-context";
 import { useServerValue } from "./use-server-value";
 import type { OccurrenceStatus } from "@/lib/core/month";
 
@@ -74,7 +75,7 @@ export function OccurrenceChips({
   occurrences: OccurrenceStatus[];
   showMarkAll?: boolean;
 }) {
-  const [, startTransition] = useTransition();
+  const scheduleRefresh = useScheduleRefresh();
   // Chips paint on tap and the counter follows them, so a tap lands without
   // waiting for the server to write and re-render. What we ticked outlives the
   // action's promise -- it is dropped only once the server's own answer for
@@ -93,13 +94,18 @@ export function OccurrenceChips({
 
   function save(dates: string[], value: boolean, write: () => Promise<void>) {
     setPending((p) => ({ ...p, ...Object.fromEntries(dates.map((d) => [d, value])) }));
-    startTransition(async () => {
+    // Not wrapped in startTransition: that would put the whole re-render --
+    // this chip, the row totals, the daily budget in the layout -- on a
+    // deferrable lane React is free to leave uncommitted. The refresh below
+    // is a router update instead, which always lands.
+    void (async () => {
       try {
         await write();
+        scheduleRefresh();
       } catch {
         setPending({});
       }
-    });
+    })();
   }
 
   const done = shownOccurrences.filter((o) => o[field]).length;

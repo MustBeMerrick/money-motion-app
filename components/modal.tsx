@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
+import { useScheduleRefresh } from "@/lib/refresh-context";
 import { Trash2, X } from "lucide-react";
 
 export function Modal({
@@ -53,8 +54,9 @@ export function ConfirmDelete({
   onDelete: () => Promise<void>;
   label?: string;
 }) {
+  const scheduleRefresh = useScheduleRefresh();
   const [armed, setArmed] = useState(false);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     if (!armed) return;
@@ -68,10 +70,16 @@ export function ConfirmDelete({
       disabled={pending}
       onClick={() => {
         if (!armed) return setArmed(true);
-        startTransition(async () => {
-          await onDelete();
-          setArmed(false);
-        });
+        setPending(true);
+        void (async () => {
+          try {
+            await onDelete();
+            scheduleRefresh();
+          } finally {
+            setArmed(false);
+            setPending(false);
+          }
+        })();
       }}
       className={`btn btn-danger px-2 py-1 text-xs ${armed ? "border-neg bg-neg/15" : ""} ${pending ? "opacity-50" : ""}`}
     >

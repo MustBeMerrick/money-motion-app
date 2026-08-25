@@ -1,6 +1,5 @@
 "use server";
 
-import { refresh as refreshRouter } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseDollarsToCents } from "@/lib/core/money";
@@ -22,15 +21,12 @@ const checkbox = z
   .optional()
   .transform((v) => v === "on" || v === "true");
 
-// Nothing here is cached -- every route is force-dynamic and reads SQLite on
-// each render -- so there is no cache entry for revalidatePath to invalidate.
-// What the client actually needs is the current route's RSC payload refetched
-// in the action's own response, which is what refresh() is for. revalidatePath
-// also dirties every previously visited page, re-rendering them on the way
-// back for no gain.
-function refresh() {
-  refreshRouter();
-}
+// No revalidation happens here on purpose. Nothing is cached -- every route is
+// force-dynamic and reads SQLite on each render -- so there is nothing for
+// revalidatePath to invalidate, and refresh() (which piggybacks the new tree
+// onto this response) lands the update on whatever React lane dispatched the
+// action, where it can sit uncommitted. The client asks for the new data
+// itself once the write resolves; see lib/refresh-context.tsx.
 
 function fields(formData: FormData): Record<string, string> {
   const out: Record<string, string> = {};
@@ -55,7 +51,6 @@ export async function setBillStatus(
     create: { billId, date, [field]: value },
     update: { [field]: value },
   });
-  refresh();
 }
 
 /** Tick or clear every charge of a bill in one month — the header checkbox. */
@@ -75,7 +70,6 @@ export async function setBillStatusForMonth(
       }),
     ),
   );
-  refresh();
 }
 
 // --- accounts ---
@@ -112,18 +106,15 @@ export async function saveAccount(formData: FormData) {
   } else {
     await prisma.account.create({ data });
   }
-  refresh();
 }
 
 export async function updateAccountBalance(id: string, balanceCents: number) {
   z.number().int().parse(balanceCents);
   await prisma.account.update({ where: { id }, data: { balanceCents } });
-  refresh();
 }
 
 export async function deleteAccount(id: string) {
   await prisma.account.delete({ where: { id } });
-  refresh();
 }
 
 // --- bills ---
@@ -163,12 +154,10 @@ export async function saveBill(formData: FormData) {
   } else {
     await prisma.bill.create({ data });
   }
-  refresh();
 }
 
 export async function deleteBill(id: string) {
   await prisma.bill.delete({ where: { id } });
-  refresh();
 }
 
 // --- extra income ---
@@ -194,12 +183,10 @@ export async function saveExtraIncome(formData: FormData) {
     const last = await prisma.extraIncome.aggregate({ _max: { sortOrder: true } });
     await prisma.extraIncome.create({ data: { ...data, sortOrder: (last._max.sortOrder ?? 0) + 1 } });
   }
-  refresh();
 }
 
 export async function deleteExtraIncome(id: string) {
   await prisma.extraIncome.delete({ where: { id } });
-  refresh();
 }
 
 export async function reorderExtraIncome(orderedIds: string[]) {
@@ -208,7 +195,6 @@ export async function reorderExtraIncome(orderedIds: string[]) {
       prisma.extraIncome.update({ where: { id }, data: { sortOrder } }),
     ),
   );
-  refresh();
 }
 
 // --- piggy buckets ---
@@ -261,7 +247,6 @@ export async function saveBucket(formData: FormData) {
   } else {
     await prisma.piggyBucket.create({ data });
   }
-  refresh();
 }
 
 // Nudges the bucket's whole trajectory up/down by deltaCents — since
@@ -273,17 +258,14 @@ export async function adjustBucketPrincipal(id: string, deltaCents: number) {
     where: { id },
     data: { principalCents: { increment: deltaCents } },
   });
-  refresh();
 }
 
 export async function setBucketArchived(id: string, archived: boolean) {
   await prisma.piggyBucket.update({ where: { id }, data: { archived } });
-  refresh();
 }
 
 export async function deleteBucket(id: string) {
   await prisma.piggyBucket.delete({ where: { id } });
-  refresh();
 }
 
 // --- month plan ---
@@ -311,7 +293,6 @@ export async function updateMonthPlanAmount(
     create: { month, [column]: amountCents },
     update: { [column]: amountCents },
   });
-  refresh();
 }
 
 export async function setSalaryReceived(month: string, which: "mid" | "end", received: boolean) {
@@ -320,5 +301,4 @@ export async function setSalaryReceived(month: string, which: "mid" | "end", rec
     where: { month },
     data: which === "mid" ? { salaryMidReceived: received } : { salaryEndReceived: received },
   });
-  refresh();
 }

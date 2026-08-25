@@ -100,6 +100,25 @@ Tests in `lib/core/core.test.ts` assert against **real values from Marc's
 sheet** (Ring 1890 − 14×54d = 1134, etc.) dated 2026-08-16. If a formula changes,
 those fixtures are the source of truth for whether it still matches the sheet.
 
+## Data refresh
+
+Every mutation is a server action followed by "show me the new numbers", and
+there is exactly one way to do the second half: `await` the action from the
+click handler, then call `scheduleRefresh()` from `useScheduleRefresh()`
+(`lib/refresh-context.tsx`, ported from option-pilot-app).
+
+Do **not** use `refresh()` from `next/cache` inside the action, and do **not**
+wrap the action call in `startTransition`. Both put the re-render on a
+deferrable React lane, where it can sit uncommitted until an unrelated click
+sweeps it up -- the checkbox you ticked repaints (it is optimistic) while the
+daily budget it feeds stays stale. A client `router.refresh()` is a router
+update React always commits. `RefreshProvider` also serializes them, so
+tapping five chips fast can't apply RSC payloads out of order.
+
+`revalidatePath` is equally wrong here: nothing is cached (every route is
+force-dynamic over SQLite), so there is no cache entry to invalidate, and it
+dirties every previously visited page for no gain.
+
 ## Auth
 
 A single password gate, ported from option-pilot-app minus the passkeys.
