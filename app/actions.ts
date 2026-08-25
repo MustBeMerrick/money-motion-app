@@ -28,6 +28,14 @@ const checkbox = z
 // action, where it can sit uncommitted. The client asks for the new data
 // itself once the write resolves; see lib/refresh-context.tsx.
 
+// Deployed, every action is a round trip over the tunnel; locally it is ~1ms,
+// which hides any ordering bug between a write and the refresh that follows.
+// Set SLOW_ACTIONS_MS to make `npm run dev` behave like the server.
+const SLOW_ACTIONS_MS = Number(process.env.SLOW_ACTIONS_MS ?? 0);
+async function actionLatency() {
+  if (SLOW_ACTIONS_MS > 0) await new Promise((r) => setTimeout(r, SLOW_ACTIONS_MS));
+}
+
 function fields(formData: FormData): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of formData.entries()) {
@@ -45,6 +53,7 @@ export async function setBillStatus(
   field: "hit" | "paid",
   value: boolean,
 ) {
+  await actionLatency();
   isoDate.parse(date);
   await prisma.billOccurrence.upsert({
     where: { billId_date: { billId, date } },
@@ -60,6 +69,7 @@ export async function setBillStatusForMonth(
   field: "hit" | "paid",
   value: boolean,
 ) {
+  await actionLatency();
   dates.forEach((d) => isoDate.parse(d));
   await prisma.$transaction(
     dates.map((date) =>
@@ -85,6 +95,7 @@ const accountSchema = z.object({
 });
 
 export async function saveAccount(formData: FormData) {
+  await actionLatency();
   const f = accountSchema.parse(fields(formData));
   const data = {
     name: f.name,
@@ -109,11 +120,13 @@ export async function saveAccount(formData: FormData) {
 }
 
 export async function updateAccountBalance(id: string, balanceCents: number) {
+  await actionLatency();
   z.number().int().parse(balanceCents);
   await prisma.account.update({ where: { id }, data: { balanceCents } });
 }
 
 export async function deleteAccount(id: string) {
+  await actionLatency();
   await prisma.account.delete({ where: { id } });
 }
 
@@ -134,6 +147,7 @@ const billSchema = z.object({
 });
 
 export async function saveBill(formData: FormData) {
+  await actionLatency();
   const f = billSchema.parse(fields(formData));
   const weekly = f.frequency === "WEEKLY";
   const data = {
@@ -157,6 +171,7 @@ export async function saveBill(formData: FormData) {
 }
 
 export async function deleteBill(id: string) {
+  await actionLatency();
   await prisma.bill.delete({ where: { id } });
 }
 
@@ -170,6 +185,7 @@ const extraIncomeSchema = z.object({
 });
 
 export async function saveExtraIncome(formData: FormData) {
+  await actionLatency();
   const f = extraIncomeSchema.parse(fields(formData));
   const data = {
     source: f.source,
@@ -186,10 +202,12 @@ export async function saveExtraIncome(formData: FormData) {
 }
 
 export async function deleteExtraIncome(id: string) {
+  await actionLatency();
   await prisma.extraIncome.delete({ where: { id } });
 }
 
 export async function reorderExtraIncome(orderedIds: string[]) {
+  await actionLatency();
   await prisma.$transaction(
     orderedIds.map((id, sortOrder) =>
       prisma.extraIncome.update({ where: { id }, data: { sortOrder } }),
@@ -211,6 +229,7 @@ const bucketSchema = z.object({
 });
 
 export async function saveBucket(formData: FormData) {
+  await actionLatency();
   const f = bucketSchema.parse(fields(formData));
   let principalCents = f.principal;
 
@@ -254,6 +273,7 @@ export async function saveBucket(formData: FormData) {
 // a flat amount shifts today's (and every future) value by exactly that
 // amount without touching the rate or start date.
 export async function adjustBucketPrincipal(id: string, deltaCents: number) {
+  await actionLatency();
   await prisma.piggyBucket.update({
     where: { id },
     data: { principalCents: { increment: deltaCents } },
@@ -261,10 +281,12 @@ export async function adjustBucketPrincipal(id: string, deltaCents: number) {
 }
 
 export async function setBucketArchived(id: string, archived: boolean) {
+  await actionLatency();
   await prisma.piggyBucket.update({ where: { id }, data: { archived } });
 }
 
 export async function deleteBucket(id: string) {
+  await actionLatency();
   await prisma.piggyBucket.delete({ where: { id } });
 }
 
@@ -284,6 +306,7 @@ export async function updateMonthPlanAmount(
   field: z.infer<typeof planField>,
   amountCents: number,
 ) {
+  await actionLatency();
   isoMonth.parse(month);
   planField.parse(field);
   z.number().int().parse(amountCents);
@@ -296,6 +319,7 @@ export async function updateMonthPlanAmount(
 }
 
 export async function setSalaryReceived(month: string, which: "mid" | "end", received: boolean) {
+  await actionLatency();
   isoMonth.parse(month);
   await prisma.monthPlan.update({
     where: { month },

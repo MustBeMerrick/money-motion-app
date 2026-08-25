@@ -18,32 +18,55 @@ import { useRouter } from "next/navigation";
 // with no completion signal, and this app triggers it from many independent
 // places (every chip, stepper, inline amount, delete). Firing a second while
 // the first's RSC payload is still in flight lets them apply out of order.
-// Gating on isPending means a new call is never fired mid-flight; one that
-// arrives while we're busy is queued and fires the moment the current one
-// commits, instead of being dropped or racing it.
+// So a refresh is never started mid-flight; one asked for while we're busy is
+// queued and fires the moment the current one commits, instead of being
+// dropped or racing it.
 const ScheduleRefreshContext = createContext<(() => void) | null>(null);
 
 export function RefreshProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const requestedRef = useRef(false);
+  // Gating on the `isPending` state would be wrong here. option-pilot-app can
+  // read it from the render closure because it only ever calls this straight
+  // from an event handler, against the latest committed render. We call it from
+  // an async continuation -- after `await write()` -- so the closure is the one
+  // from the render at click time, which still says "idle" while a refresh
+  // kicked off by the previous tap is in flight. Two taps in quick succession
+  // then fire two concurrent refreshes, and the older payload can land last and
+  // repaint the newer edit away. Refs are read at call time, so they can't go
+  // stale that way.
+  const inFlightRef = useRef(false);
+  const queuedRef = useRef(false);
+  const wasPendingRef = useRef(false);
 
-  // Reads `isPending` from this render's closure -- correct because this is
-  // only ever invoked from event handlers, which run against the most recently
-  // committed render, so it's never stale the way a ref frozen at mount would be.
   function scheduleRefresh() {
-    if (isPending) {
-      requestedRef.current = true;
+    if (inFlightRef.current) {
+      queuedRef.current = true;
       return;
     }
+    inFlightRef.current = true;
     startTransition(() => router.refresh());
   }
 
-  // Once an in-flight refresh actually commits, fire exactly one follow-up if
-  // anything asked while we were busy -- otherwise that edit is never shown.
+  // Only a true -> false edge means a refresh actually finished. Testing
+  // `!isPending` alone would also match the render right after startTransition,
+  // before React has flipped it true, and clear the flag on a refresh that had
+  // barely started.
   useEffect(() => {
-    if (!isPending && requestedRef.current) {
-      requestedRef.current = false;
+    if (isPending) {
+      wasPendingRef.current = true;
+      return;
+    }
+    if (!wasPendingRef.current) return;
+    wasPendingRef.current = false;
+    inFlightRef.current = false;
+    // Fire exactly one follow-up if anything asked while we were busy --
+    // otherwise the edits that arrived during the refresh are never shown. It
+    // has to be a fresh fetch, not a replay: the payload now in hand was
+    // requested before those writes committed.
+    if (queuedRef.current) {
+      queuedRef.current = false;
+      inFlightRef.current = true;
       startTransition(() => router.refresh());
     }
   }, [isPending, router]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { setBillStatus, setBillStatusForMonth, setSalaryReceived } from "@/app/actions";
 import { useScheduleRefresh } from "@/lib/refresh-context";
@@ -78,34 +78,46 @@ export function OccurrenceChips({
   const scheduleRefresh = useScheduleRefresh();
   // Chips paint on tap and the counter follows them, so a tap lands without
   // waiting for the server to write and re-render. What we ticked outlives the
-  // action's promise -- it is dropped only once the server's own answer for
-  // this bill changes, since a resolved action whose revalidation has not
-  // landed yet would otherwise repaint the chip unticked.
+  // action's promise, since a resolved action whose refresh has not landed yet
+  // would otherwise repaint the chip unticked.
   const [pending, setPending] = useState<Record<string, boolean>>({});
-  const signature = occurrences.map((o) => (o[field] ? "1" : "0")).join("");
-  const [seen, setSeen] = useState(signature);
-  if (seen !== signature) {
-    setSeen(signature);
-    setPending({});
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  // Retire optimistic chips one at a time, each when the server reports back
+  // the value that chip sent. Clearing the whole map on any change to this
+  // bill -- which is what a signature check does -- is wrong while several
+  // taps are in flight: the refresh answering the first tap carries the
+  // second chip's *old* value, so it dropped a still-correct optimistic chip
+  // and visibly un-ticked it until the next refresh put it back.
+  const settled = occurrences.filter((o) => o.date in pending && pending[o.date] === o[field]);
+  if (settled.length > 0) {
+    setPending((p) => {
+      const next = { ...p };
+      for (const o of settled) delete next[o.date];
+      return next;
+    });
   }
+
   const shownOccurrences = occurrences.map((o) =>
     o.date in pending ? { ...o, [field]: pending[o.date] } : o,
   );
 
   function save(dates: string[], value: boolean, write: () => Promise<void>) {
     setPending((p) => ({ ...p, ...Object.fromEntries(dates.map((d) => [d, value])) }));
-    // Not wrapped in startTransition: that would put the whole re-render --
-    // this chip, the row totals, the daily budget in the layout -- on a
-    // deferrable lane React is free to leave uncommitted. The refresh below
-    // is a router update instead, which always lands.
-    void (async () => {
-      try {
-        await write();
-        scheduleRefresh();
-      } catch {
-        setPending({});
-      }
-    })();
+    // Writes for this bill go one at a time. Firing them concurrently -- which
+    // is what tapping the same chip twice quickly does -- leaves the order the
+    // upserts commit in up to chance, so the row can end up holding the older
+    // tap's value while the screen shows the newer one.
+    queueRef.current = queueRef.current
+      .then(write)
+      .then(
+        // Not wrapped in startTransition: that would put the whole re-render --
+        // this chip, the row totals, the daily budget in the layout -- on a
+        // deferrable lane React is free to leave uncommitted. A refresh is a
+        // router update instead, which always lands.
+        () => scheduleRefresh(),
+        () => setPending({}),
+      );
   }
 
   const done = shownOccurrences.filter((o) => o[field]).length;
