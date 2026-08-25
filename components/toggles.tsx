@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { setBillStatus, setBillStatusForMonth, setSalaryReceived } from "@/app/actions";
 import { useScheduleRefresh } from "@/lib/refresh-context";
@@ -102,8 +102,27 @@ export function OccurrenceChips({
     o.date in pending ? { ...o, [field]: pending[o.date] } : o,
   );
 
+  // What a tap toggles away from has to be read at tap time, not off the
+  // render closure. Two taps in quick succession can both land before React
+  // has re-rendered with the first one's optimistic value, and they then
+  // compute the same target -- the second tap writes what the first already
+  // wrote and the chip sits there looking untouched. Mirrors `pending`
+  // exactly, so the value a tap reads is always the one on screen.
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
+  function shownValueOf(o: OccurrenceStatus): boolean {
+    return o.date in pendingRef.current ? pendingRef.current[o.date] : o[field];
+  }
+
   function save(dates: string[], value: boolean, write: () => Promise<void>) {
-    setPending((p) => ({ ...p, ...Object.fromEntries(dates.map((d) => [d, value])) }));
+    const marked = Object.fromEntries(dates.map((d) => [d, value]));
+    // Update the mirror synchronously as well: the effect above runs a commit
+    // later, which is exactly the gap a fast second tap falls into.
+    pendingRef.current = { ...pendingRef.current, ...marked };
+    setPending((p) => ({ ...p, ...marked }));
     // Writes for this bill go one at a time. Firing them concurrently -- which
     // is what tapping the same chip twice quickly does -- leaves the order the
     // upserts commit in up to chance, so the row can end up holding the older
@@ -136,9 +155,10 @@ export function OccurrenceChips({
             title={`${billName} — ${o.date} ${field}`}
             aria-label={`${billName} ${o.date} ${field}`}
             aria-pressed={on}
-            onClick={() =>
-              save([o.date], !on, () => setBillStatus(billId, o.date, field, !on))
-            }
+            onClick={() => {
+              const next = !shownValueOf(o);
+              save([o.date], next, () => setBillStatus(billId, o.date, field, next));
+            }}
             className={`h-5 w-5 cursor-pointer rounded border text-[9px] font-semibold tabular-nums transition-colors ${
               on
                 ? "border-lime bg-gradient-to-br from-forest to-lime text-[#08130a]"
@@ -154,10 +174,9 @@ export function OccurrenceChips({
           type="button"
           title={allDone ? "Clear all" : "Mark all"}
           onClick={() => {
-            const dates = shownOccurrences.map((o) => o.date);
-            save(dates, !allDone, () =>
-              setBillStatusForMonth(billId, dates, field, !allDone),
-            );
+            const dates = occurrences.map((o) => o.date);
+            const next = !occurrences.every(shownValueOf);
+            save(dates, next, () => setBillStatusForMonth(billId, dates, field, next));
           }}
           className={`ml-0.5 cursor-pointer rounded px-1 text-[10px] font-semibold tabular-nums transition-colors hover:text-lime ${
             allDone ? "text-lime" : "text-ink-3"
