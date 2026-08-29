@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { setBillStatus, setBillStatusForMonth, setSalaryReceived } from "@/app/actions";
 import { useScheduleRefresh } from "@/lib/refresh-context";
+import { refreshTrace } from "@/lib/refresh-trace";
 import { useServerValue } from "./use-server-value";
 import type { OccurrenceStatus } from "@/lib/core/month";
 
@@ -16,7 +17,7 @@ function CheckBox({
   onToggle: (next: boolean) => unknown;
   label: string;
 }) {
-  const [shown, save] = useServerValue(checked);
+  const [shown, save] = useServerValue(checked, label);
   return (
     <button
       type="button"
@@ -82,6 +83,9 @@ export function OccurrenceChips({
   // would otherwise repaint the chip unticked.
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // one stale-edit watchdog per in-flight chip date; see lib/refresh-trace.ts,
+  // issue #1 -- OccurrenceChips was the worst-case repro of the bug
+  const confirmRef = useRef<Record<string, () => void>>({});
 
   // Retire optimistic chips one at a time, each when the server reports back
   // the value that chip sent. Clearing the whole map on any change to this
@@ -93,7 +97,11 @@ export function OccurrenceChips({
   if (settled.length > 0) {
     setPending((p) => {
       const next = { ...p };
-      for (const o of settled) delete next[o.date];
+      for (const o of settled) {
+        delete next[o.date];
+        confirmRef.current[o.date]?.();
+        delete confirmRef.current[o.date];
+      }
       return next;
     });
   }
@@ -123,6 +131,7 @@ export function OccurrenceChips({
     // later, which is exactly the gap a fast second tap falls into.
     pendingRef.current = { ...pendingRef.current, ...marked };
     setPending((p) => ({ ...p, ...marked }));
+    for (const d of dates) confirmRef.current[d] = refreshTrace.watchEdit(`${billName} ${field} ${d}`);
     // Writes for this bill go one at a time. Firing them concurrently -- which
     // is what tapping the same chip twice quickly does -- leaves the order the
     // upserts commit in up to chance, so the row can end up holding the older
@@ -135,7 +144,10 @@ export function OccurrenceChips({
         // deferrable lane React is free to leave uncommitted. A refresh is a
         // router update instead, which always lands.
         () => scheduleRefresh(),
-        () => setPending({}),
+        () => {
+          for (const d of dates) delete confirmRef.current[d];
+          setPending({});
+        },
       );
   }
 

@@ -10,7 +10,7 @@ const STEP_CENTS = 100;
 export function BucketCurrentStepper({ bucketId, cents }: { bucketId: string; cents: number }) {
   // steps read off what is on screen, so a second tap before the server has
   // answered still moves by another dollar instead of re-sending the first
-  const [shown, save, pending] = useServerValue(cents);
+  const [shown, save, pending] = useServerValue(cents, `bucket ${bucketId} current`);
 
   function adjust(delta: number) {
     save(shown + delta, () => adjustBucketPrincipal(bucketId, delta));

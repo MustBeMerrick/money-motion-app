@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useScheduleRefresh } from "@/lib/refresh-context";
+import { refreshTrace } from "@/lib/refresh-trace";
 
 /**
  * A value the server owns, edited from the client.
@@ -18,7 +19,7 @@ import { useScheduleRefresh } from "@/lib/refresh-context";
  * action instead put the re-render on the lane that dispatched the action,
  * where it could sit uncommitted; see lib/refresh-context.tsx.
  */
-export function useServerValue<T>(value: T) {
+export function useServerValue<T>(value: T, label = "value") {
   const scheduleRefresh = useScheduleRefresh();
   const [sent, setSent] = useState<{ v: T } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -32,6 +33,9 @@ export function useServerValue<T>(value: T) {
   // during render. Decremented before the refresh that follows the write is
   // asked for, so it is always settled by the time that refresh's props land.
   const [inFlight, setInFlight] = useState(0);
+  // confirms (or times out and dumps a diagnostic) the in-flight edit; see
+  // lib/refresh-trace.ts, issue #1
+  const confirmRef = useRef<(() => void) | null>(null);
 
   if (!Object.is(seen, value)) {
     setSeen(value);
@@ -47,10 +51,21 @@ export function useServerValue<T>(value: T) {
     }
   }
 
+  // Fires once `sent` clears -- i.e. once render has decided the edit is
+  // confirmed -- rather than inline above, which would read/write the ref
+  // during render.
+  useEffect(() => {
+    if (sent === null) {
+      confirmRef.current?.();
+      confirmRef.current = null;
+    }
+  }, [sent]);
+
   function commit(next: T, write: () => unknown) {
     setSent({ v: next });
     setSaving(true);
     setInFlight((n) => n + 1);
+    confirmRef.current = refreshTrace.watchEdit(label);
     // Deliberately not inside startTransition: the write is dispatched at the
     // click's own priority, and the refresh that follows carries the update.
     queueRef.current = queueRef.current.then(write).then(

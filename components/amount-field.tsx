@@ -91,7 +91,7 @@ export function AmountField({
   const [fresh, setFresh] = useState(true);
   // the amount we last saved stays on screen until the server re-renders with
   // it, so a slow (or dropped) revalidation never repaints the old number
-  const [savedCents, save, pending] = useServerValue(cents);
+  const [savedCents, save, pending] = useServerValue(cents, "amount-field");
   const coarse = useCoarsePointer();
   const editing = value !== null;
 

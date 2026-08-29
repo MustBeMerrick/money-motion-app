@@ -2,6 +2,7 @@
 
 import { createContext, ReactNode, useContext, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { refreshTrace } from "./refresh-trace";
 
 // Ported from option-pilot-app, which solved this first.
 //
@@ -39,12 +40,18 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
   const queuedRef = useRef(false);
   const wasPendingRef = useRef(false);
 
+  useEffect(() => {
+    refreshTrace.startResourceWatch();
+  }, []);
+
   function scheduleRefresh() {
     if (inFlightRef.current) {
       queuedRef.current = true;
+      refreshTrace.record("refresh:queued");
       return;
     }
     inFlightRef.current = true;
+    refreshTrace.record("refresh:start");
     startTransition(() => router.refresh());
   }
 
@@ -60,6 +67,7 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
     if (!wasPendingRef.current) return;
     wasPendingRef.current = false;
     inFlightRef.current = false;
+    refreshTrace.record("refresh:committed");
     // Fire exactly one follow-up if anything asked while we were busy --
     // otherwise the edits that arrived during the refresh are never shown. It
     // has to be a fresh fetch, not a replay: the payload now in hand was
@@ -67,6 +75,7 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
     if (queuedRef.current) {
       queuedRef.current = false;
       inFlightRef.current = true;
+      refreshTrace.record("refresh:start", { fromQueue: true });
       startTransition(() => router.refresh());
     }
   }, [isPending, router]);
