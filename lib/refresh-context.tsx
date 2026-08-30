@@ -61,6 +61,10 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
   // barely started.
   useEffect(() => {
     if (isPending) {
+      // Distinguishes "React never picked up the transition" (this never
+      // logs) from "it started and never finished" (this logs but
+      // refresh:committed never follows) -- see issue #1.
+      if (!wasPendingRef.current) refreshTrace.record("refresh:pending");
       wasPendingRef.current = true;
       return;
     }
