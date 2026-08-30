@@ -1,18 +1,22 @@
 import { PageHeader } from "@/components/ui";
+import { DailyBudgetSlot } from "@/components/daily-budget-slot";
 
 export const dynamic = "force-dynamic";
 
 export default function SettingsPage() {
   return (
-    <div className="max-w-xl">
-      <PageHeader title="Settings" subtitle="Salary and savings are edited on the dashboard" />
+    <>
+      <DailyBudgetSlot />
+      <div className="max-w-xl">
+        <PageHeader title="Settings" subtitle="Salary and savings are edited on the dashboard" />
 
-      <div className="card text-sm leading-relaxed text-ink-2">
-        <h2 className="card-title">About</h2>
-        MoneyMotion is a private, single-user budget console. Data lives in a local SQLite file at{" "}
-        <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">data/money-motion.sqlite</code>.
-        Deployment to the home server uses <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">deploy/deploy.sh</code>.
+        <div className="card text-sm leading-relaxed text-ink-2">
+          <h2 className="card-title">About</h2>
+          MoneyMotion is a private, single-user budget console. Data lives in a local SQLite file at{" "}
+          <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">data/money-motion.sqlite</code>.
+          Deployment to the home server uses <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">deploy/deploy.sh</code>.
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { setBillStatus, setBillStatusForMonth, setSalaryReceived } from "@/app/actions";
+import { useScheduleRefresh } from "@/lib/refresh-context";
 import { useServerValue } from "./use-server-value";
 import type { OccurrenceStatus } from "@/lib/core/month";
 
@@ -74,32 +75,68 @@ export function OccurrenceChips({
   occurrences: OccurrenceStatus[];
   showMarkAll?: boolean;
 }) {
-  const [, startTransition] = useTransition();
+  const scheduleRefresh = useScheduleRefresh();
   // Chips paint on tap and the counter follows them, so a tap lands without
   // waiting for the server to write and re-render. What we ticked outlives the
-  // action's promise -- it is dropped only once the server's own answer for
-  // this bill changes, since a resolved action whose revalidation has not
-  // landed yet would otherwise repaint the chip unticked.
+  // action's promise, since a resolved action whose refresh has not landed yet
+  // would otherwise repaint the chip unticked.
   const [pending, setPending] = useState<Record<string, boolean>>({});
-  const signature = occurrences.map((o) => (o[field] ? "1" : "0")).join("");
-  const [seen, setSeen] = useState(signature);
-  if (seen !== signature) {
-    setSeen(signature);
-    setPending({});
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  // Retire optimistic chips one at a time, each when the server reports back
+  // the value that chip sent. Clearing the whole map on any change to this
+  // bill -- which is what a signature check does -- is wrong while several
+  // taps are in flight: the refresh answering the first tap carries the
+  // second chip's *old* value, so it dropped a still-correct optimistic chip
+  // and visibly un-ticked it until the next refresh put it back.
+  const settled = occurrences.filter((o) => o.date in pending && pending[o.date] === o[field]);
+  if (settled.length > 0) {
+    setPending((p) => {
+      const next = { ...p };
+      for (const o of settled) delete next[o.date];
+      return next;
+    });
   }
+
   const shownOccurrences = occurrences.map((o) =>
     o.date in pending ? { ...o, [field]: pending[o.date] } : o,
   );
 
+  // What a tap toggles away from has to be read at tap time, not off the
+  // render closure. Two taps in quick succession can both land before React
+  // has re-rendered with the first one's optimistic value, and they then
+  // compute the same target -- the second tap writes what the first already
+  // wrote and the chip sits there looking untouched. Mirrors `pending`
+  // exactly, so the value a tap reads is always the one on screen.
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
+  function shownValueOf(o: OccurrenceStatus): boolean {
+    return o.date in pendingRef.current ? pendingRef.current[o.date] : o[field];
+  }
+
   function save(dates: string[], value: boolean, write: () => Promise<void>) {
-    setPending((p) => ({ ...p, ...Object.fromEntries(dates.map((d) => [d, value])) }));
-    startTransition(async () => {
-      try {
-        await write();
-      } catch {
-        setPending({});
-      }
-    });
+    const marked = Object.fromEntries(dates.map((d) => [d, value]));
+    // Update the mirror synchronously as well: the effect above runs a commit
+    // later, which is exactly the gap a fast second tap falls into.
+    pendingRef.current = { ...pendingRef.current, ...marked };
+    setPending((p) => ({ ...p, ...marked }));
+    // Writes for this bill go one at a time. Firing them concurrently -- which
+    // is what tapping the same chip twice quickly does -- leaves the order the
+    // upserts commit in up to chance, so the row can end up holding the older
+    // tap's value while the screen shows the newer one.
+    queueRef.current = queueRef.current
+      .then(write)
+      .then(
+        // Not wrapped in startTransition: that would put the whole re-render --
+        // this chip, the row totals, the daily budget in the layout -- on a
+        // deferrable lane React is free to leave uncommitted. A refresh is a
+        // router update instead, which always lands.
+        () => scheduleRefresh(),
+        () => setPending({}),
+      );
   }
 
   const done = shownOccurrences.filter((o) => o[field]).length;
@@ -118,9 +155,10 @@ export function OccurrenceChips({
             title={`${billName} — ${o.date} ${field}`}
             aria-label={`${billName} ${o.date} ${field}`}
             aria-pressed={on}
-            onClick={() =>
-              save([o.date], !on, () => setBillStatus(billId, o.date, field, !on))
-            }
+            onClick={() => {
+              const next = !shownValueOf(o);
+              save([o.date], next, () => setBillStatus(billId, o.date, field, next));
+            }}
             className={`h-5 w-5 cursor-pointer rounded border text-[9px] font-semibold tabular-nums transition-colors ${
               on
                 ? "border-lime bg-gradient-to-br from-forest to-lime text-[#08130a]"
@@ -136,10 +174,9 @@ export function OccurrenceChips({
           type="button"
           title={allDone ? "Clear all" : "Mark all"}
           onClick={() => {
-            const dates = shownOccurrences.map((o) => o.date);
-            save(dates, !allDone, () =>
-              setBillStatusForMonth(billId, dates, field, !allDone),
-            );
+            const dates = occurrences.map((o) => o.date);
+            const next = !occurrences.every(shownValueOf);
+            save(dates, next, () => setBillStatusForMonth(billId, dates, field, next));
           }}
           className={`ml-0.5 cursor-pointer rounded px-1 text-[10px] font-semibold tabular-nums transition-colors hover:text-lime ${
             allDone ? "text-lime" : "text-ink-3"

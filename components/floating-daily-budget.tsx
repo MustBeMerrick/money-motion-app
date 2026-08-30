@@ -4,8 +4,8 @@ import { usePathname } from "next/navigation";
 import { formatCents } from "@/lib/core/money";
 import { Money } from "@/components/ui";
 
-// Shown inline on the dashboard already, so this floating copy only
-// appears once you've navigated away from it — it's meant to stay in view
+// Shown inline on the dashboard already, and the calendar fills the whole
+// viewport, so neither of those pages renders this. It's meant to stay in view
 // as a live readout while you tick bills, adjust buckets, etc. elsewhere.
 // Keying on pathname remounts the card on every navigation, replaying the
 // slide-in animation each time it (re)appears.
@@ -19,9 +19,6 @@ export function FloatingDailyBudget({
   plannedNetCents: number;
 }) {
   const pathname = usePathname();
-  // dashboard already shows it inline; calendar fills the whole viewport
-  // and has no room for a floating overlay
-  if (pathname === "/" || pathname === "/login" || pathname.startsWith("/calendar")) return null;
 
   return (
     <div
