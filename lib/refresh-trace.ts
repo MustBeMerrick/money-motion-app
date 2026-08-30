@@ -59,6 +59,18 @@ function startResourceWatch() {
   // never gets pinged to retry. This listener exists to catch that
   // coincidence, since nothing else makes it visible.
   window.addEventListener("popstate", () => record("browser:popstate"));
+  // handleResult() in Next's app-router-instance.js calls runRemainingActions()
+  // before action.resolve() -- if that throws, the current action's promise
+  // (the one use() is suspended on) is orphaned the same way a discarded
+  // navigation orphans it, just from a JS exception instead. This would
+  // normally show as an uncaught error/rejection; catch it here so a silent
+  // one still lands in the trace next to whatever edit was in flight.
+  window.addEventListener("error", (e) => {
+    record("browser:error", { message: e.message, filename: e.filename, lineno: e.lineno });
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    record("browser:unhandledrejection", { reason: String(e.reason) });
+  });
   if (typeof PerformanceObserver === "undefined") return;
   const observer = new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
