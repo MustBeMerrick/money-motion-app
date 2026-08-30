@@ -48,8 +48,18 @@ const resourceLog: ResourceEntry[] = [];
 let watching = false;
 
 function startResourceWatch() {
-  if (!ENABLED || watching || typeof PerformanceObserver === "undefined") return;
+  if (!ENABLED || watching) return;
   watching = true;
+  // A back/forward gesture (or browser button) dispatches Next's own
+  // ACTION_RESTORE through the same router action queue as our refreshes. If
+  // it preempts a still-pending refresh, Next marks that refresh "discarded"
+  // and never resolves its promise -- see app-router-instance.js's
+  // handleResult(): the discarded branch returns without calling
+  // action.resolve(). Whatever's suspended on that promise (via use()) then
+  // never gets pinged to retry. This listener exists to catch that
+  // coincidence, since nothing else makes it visible.
+  window.addEventListener("popstate", () => record("browser:popstate"));
+  if (typeof PerformanceObserver === "undefined") return;
   const observer = new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
       const e = entry as PerformanceResourceTiming;
