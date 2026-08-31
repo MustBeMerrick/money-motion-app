@@ -44,7 +44,13 @@ cmd_deploy() {
   # make the bind-mount target ourselves: if docker creates it, it lands
   # root-owned and the uid-1000 container can't write the sqlite file
   ssh "$HOST" "mkdir -p ~/$DATA"
-  ssh "$HOST" "set -e; cd ~/$SRC; $COMPOSE build app; $COMPOSE run --rm migrate; $COMPOSE up -d app"
+  # migrate is a separate build target (builder stage) from the same
+  # Dockerfile as app -- compose won't rebuild an existing image on `run`
+  # unless told to, so without building it explicitly here it silently keeps
+  # using whatever schema.prisma was baked in the first time it was ever
+  # built, and every later `db push` against the real (current) schema
+  # reports "already in sync" against a schema it's not actually checking.
+  ssh "$HOST" "set -e; cd ~/$SRC; $COMPOSE build app migrate; $COMPOSE run --rm migrate; $COMPOSE up -d app"
   echo "deployed $(git rev-parse --short HEAD) -> http://gmktec.local:3003"
 }
 
