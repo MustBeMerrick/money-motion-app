@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useScheduleRefresh } from "@/lib/refresh-context";
 import { Trash2, X } from "lucide-react";
 
@@ -23,7 +24,14 @@ export function Modal({
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  // Portalled to <body>: triggers like the Accounts page's edit pencil live
+  // inside a card that's itself a <Link>, and rendering the modal in place
+  // leaves its submit button a descendant of that anchor -- nested
+  // interactive content browsers handle unreliably (this is what silently
+  // ate Edit Account's Save click before the modal was portalled here; see
+  // transaction-form.tsx for the same fix applied to the add-transaction
+  // modal, for a different but related stacking-context reason).
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
@@ -42,7 +50,8 @@ export function Modal({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

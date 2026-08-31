@@ -17,15 +17,45 @@ export type BillWithStatus = Bill & {
   paid: boolean;
 };
 
+export type AccountWithBalance = Account & { balanceCents: number };
+
 export interface DashboardData {
   today: IsoDate;
   month: IsoMonth;
-  accounts: Account[];
+  accounts: AccountWithBalance[];
   plan: MonthPlan;
   bills: BillWithStatus[];
   extras: ExtraIncome[];
   buckets: PiggyBucket[];
   snapshot: MonthSnapshot;
+}
+
+// The live balance for every account: startingBalanceCents (the value the
+// Accounts page's "Starting Balance" field edits) plus the net of every
+// Transaction touching it since. A Transaction never mutates Account rows
+// directly, so a drifted balance is fixed by correcting startingBalanceCents,
+// not by patching a stored running total.
+export async function getAccountsWithBalances(): Promise<AccountWithBalance[]> {
+  const [accounts, transactions] = await Promise.all([
+    prisma.account.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
+    prisma.transaction.findMany({
+      select: { type: true, amountCents: true, reimbursement: true, accountId: true, toAccountId: true },
+    }),
+  ]);
+
+  const deltas = new Map<string, number>();
+  const add = (id: string, delta: number) => deltas.set(id, (deltas.get(id) ?? 0) + delta);
+  for (const t of transactions) {
+    // mirrors saveTransaction/deleteTransaction's balance math in app/actions.ts
+    const delta =
+      t.type === "EXPENSE" ? (t.reimbursement ? t.amountCents : -t.amountCents)
+      : t.type === "INCOME" ? t.amountCents
+      : -t.amountCents; // TRANSFER: out of accountId, into toAccountId
+    add(t.accountId, delta);
+    if (t.type === "TRANSFER" && t.toAccountId) add(t.toAccountId, t.amountCents);
+  }
+
+  return accounts.map((a) => ({ ...a, balanceCents: a.startingBalanceCents + (deltas.get(a.id) ?? 0) }));
 }
 
 export async function getOrCreateMonthPlan(month: IsoMonth): Promise<MonthPlan> {
@@ -79,17 +109,15 @@ export const getDashboardData = cache(async function getDashboardData(
   today: IsoDate = todayIso(),
 ): Promise<DashboardData> {
   const month = monthOf(today);
-  const [accounts, plan, allBills, extras, buckets] = await Promise.all([
-    prisma.account.findMany({
-      where: { active: true },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    }),
+  const [allAccounts, plan, allBills, extras, buckets] = await Promise.all([
+    getAccountsWithBalances(),
     getOrCreateMonthPlan(month),
     getBillsWithStatus(month),
     prisma.extraIncome.findMany({ orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] }),
     prisma.piggyBucket.findMany({ where: { archived: false }, orderBy: { createdAt: "asc" } }),
   ]);
 
+  const accounts = allAccounts.filter((a) => a.active);
   // a bill with no occurrences this month (a yearly one in an off month) is
   // simply not part of this month's picture
   const bills = allBills.filter((b) => b.occurrences.length > 0);

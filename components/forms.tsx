@@ -169,8 +169,17 @@ export function AccountForm({ initial, trigger }: { initial?: Account; trigger?:
                 <option value="CREDIT">Credit Card</option>
               </select>
             </Field>
-            <Field label="Balance ($)" hint="Credit card debt is negative.">
-              <input name="balance" required defaultValue={dollars(initial?.balanceCents ?? 0)} className="input" inputMode="decimal" />
+            <Field
+              label="Starting Balance ($)"
+              hint="Balance before the first logged transaction. Credit card debt is negative."
+            >
+              <input
+                name="balance"
+                required
+                defaultValue={dollars(initial?.startingBalanceCents ?? 0)}
+                className="input"
+                inputMode="decimal"
+              />
             </Field>
           </div>
           <div className="grid grid-cols-3 gap-3">

@@ -53,6 +53,14 @@
   --font-sans: var(--font-inter);
 }
 
+html {
+  /* mobile browsers auto-boost small text for readability on narrow
+     viewports -- without this, that silently overrides the category
+     select's computed shrink-to-fit font-size on phones */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   background: var(--bg);
   color: var(--ink);
@@ -103,9 +111,14 @@ body {
   }
 }
 
-/* "Bill View: Off" empties the calendar cells down to bare dates; the day
-   list under the mobile calendar is not marked .cal-bill, so it stays. */
-[data-bills="off"] .cal-bill {
+/* Bill View and Expense View share one calendar grid: both datasets (in-cell
+   chips, and the mobile day-list detail) are always rendered marked
+   .cal-bill/.cal-expense, and this just hides whichever isn't the active
+   view -- so switching is instant with no client refetch. */
+[data-view="bills"] .cal-expense {
+  display: none;
+}
+[data-view="expenses"] .cal-bill {
   display: none;
 }
 

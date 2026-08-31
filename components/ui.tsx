@@ -28,7 +28,7 @@ export function Money({
 }: {
   cents: number;
   // auto: green when positive, red when negative, muted at zero
-  tone?: "auto" | "pos" | "neg" | "plain" | "muted";
+  tone?: "auto" | "pos" | "neg" | "warn" | "info" | "plain" | "muted";
   signed?: boolean;
   className?: string;
 }) {
@@ -39,9 +39,13 @@ export function Money({
       ? "text-pos"
       : resolved === "neg"
         ? "text-neg"
-        : resolved === "muted"
-          ? "text-ink-3"
-          : "text-ink";
+        : resolved === "warn"
+          ? "text-warn"
+          : resolved === "info"
+            ? "text-info"
+            : resolved === "muted"
+              ? "text-ink-3"
+              : "text-ink";
   return (
     <span className={`font-semibold tabular-nums ${color} ${className}`}>
       {signed ? formatCentsSigned(cents) : formatCents(cents)}

@@ -7,7 +7,6 @@ import { formatCents } from "@/lib/core/money";
 import { Money, ProgressBar } from "@/components/ui";
 import { SalaryReceivedToggle } from "@/components/toggles";
 import { StatusCell } from "@/components/bill-tables";
-import { EditableBalance } from "@/components/editable-balance";
 import { EditablePlanAmount } from "@/components/editable-plan-amount";
 import { ExtraIncomeForm } from "@/components/forms";
 import { ExtraIncomeTable } from "@/components/extra-income-table";
@@ -163,7 +162,7 @@ export default async function Dashboard() {
             {liquidAccounts.map((a) => (
               <div key={a.id} className="flex items-center justify-between">
                 <span className="text-ink-2">{a.name}</span>
-                <EditableBalance accountId={a.id} cents={a.balanceCents} />
+                <Money cents={a.balanceCents} />
               </div>
             ))}
             <div className="my-1 border-t border-line" />
@@ -217,7 +216,7 @@ export default async function Dashboard() {
             {creditAccounts.map((a) => (
               <div key={a.id} className="flex items-center justify-between">
                 <AccountName name={a.name} color={a.color} color2={a.color2} />
-                <EditableBalance accountId={a.id} cents={a.balanceCents} />
+                <Money cents={a.balanceCents} />
               </div>
             ))}
             <div className="my-1 border-t border-line" />

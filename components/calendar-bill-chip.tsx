@@ -33,7 +33,7 @@ export function CalendarBillChip({
         ref={ref}
         onMouseEnter={show}
         onMouseLeave={() => setPos(null)}
-        className={`cal-bill shrink-0 truncate rounded px-1.5 py-1 text-xs font-semibold ${hit ? "line-through opacity-60" : ""}`}
+        className={`shrink-0 truncate rounded px-1.5 py-1 text-xs font-semibold ${hit ? "line-through opacity-60" : ""}`}
         style={{
           color: `color-mix(in srgb, ${color} 40%, white)`,
           background: `color-mix(in srgb, ${color} 32%, transparent)`,

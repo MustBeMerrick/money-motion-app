@@ -13,6 +13,7 @@ import {
   Settings,
 } from "lucide-react";
 import { LogoMark, Wordmark } from "./logo";
+import { AddTransactionFab } from "./transaction-form";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -124,7 +125,8 @@ export function Sidebar() {
         <Link href="/" className="px-2">
           <Wordmark />
         </Link>
-        <nav className="mt-8 flex flex-col gap-1">
+        <AddTransactionFab label="Add Transaction" className="btn btn-primary mt-6 justify-center" />
+        <nav className="mt-4 flex flex-col gap-1">
           <NavLinks pathname={pathname} />
         </nav>
         <div className="mt-auto flex flex-col gap-3 px-3 text-[11px] leading-relaxed text-ink-3">
@@ -170,6 +172,12 @@ export function Sidebar() {
           </div>
         </nav>
       </header>
+
+      {/* mobile: floating round FAB, bottom-center so it clears the daily
+          budget pill (bottom-right) and the safe-area home indicator */}
+      <AddTransactionFab
+        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-14 w-14 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-forest to-lime text-[#08130a] shadow-lg shadow-black/40 lg:hidden"
+      />
     </>
   );
 }

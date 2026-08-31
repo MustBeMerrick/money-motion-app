@@ -18,8 +18,13 @@ model Account {
   id           String      @id @default(cuid())
   name         String
   type         AccountType
-  // signed: assets positive, credit-card debt negative
-  balanceCents Int         @default(0)
+  // signed balance the account held before its first logged Transaction
+  // (assets positive, credit-card debt negative) — an anchor, not the current
+  // balance. The live balance shown throughout the app is this plus the net
+  // of every Transaction since (see lib/data.ts's getAccountsWithBalances),
+  // so fixing a drifted balance means correcting this value, not the display.
+  // @map keeps the underlying column name so renaming this needed no migration.
+  startingBalanceCents Int  @default(0) @map("balanceCents")
   color        String?
   // optional second stop: when set, the card gradient blends color -> color2
   // before fading into the surface, instead of a single-hue fade
@@ -28,6 +33,10 @@ model Account {
   active       Boolean     @default(true)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  transactions       Transaction[] @relation("TransactionAccount")
+  transactionsInto   Transaction[] @relation("TransactionToAccount")
+  defaultForPayees   Payee[]
 }
 
 model MonthPlan {
@@ -114,4 +123,118 @@ model PiggyBucket {
   originalCents  Int?
   archived       Boolean   @default(false)
   createdAt      DateTime  @default(now())
+}
+
+enum TransactionType {
+  EXPENSE
+  INCOME
+  TRANSFER
+}
+
+// Fixed, not user-editable — kept in sync by hand with lib/core/categories.ts,
+// which carries the display labels, emoji, and parent/child grouping (Auto,
+// Tax, and Utilities each have subcategories; the parent stays selectable on
+// its own too).
+enum CategoryKey {
+  AUTO
+  AUTO_GAS
+  AUTO_REGISTRATION
+  AUTO_SERVICE
+  BANK_CHARGE
+  BEAUTY
+  CHARITY
+  CHILDCARE
+  CLOTHING
+  COFFEE
+  CREDIT_CARD_PAYMENT
+  DESSERT
+  DEVICES
+  DRINKS
+  EATING_OUT
+  EDUCATION
+  ENTERTAINMENT
+  GAMBLING
+  GIFTS
+  GROCERIES
+  HEALTH_FITNESS
+  HOME_REPAIR
+  HOUSEHOLD
+  INSURANCE
+  INTEREST
+  LOAN
+  MEDICAL
+  MISC
+  MORTGAGE
+  OTHERS
+  PETS
+  RENT
+  SAVINGS
+  TAX
+  TAX_FED
+  TAX_STATE
+  TRANSPORT
+  TRAVEL
+  TV
+  UTILITIES
+  UTILITIES_TRASH_RECYCLING
+  UTILITIES_GAS_ELECTRIC
+  UTILITIES_INTERNET
+  UTILITIES_PHONE
+  UTILITIES_WATER
+  WEDDING
+  INCOME_ASCAP
+  INCOME_BONUS
+  INCOME_GAMBLING
+  INCOME_GIFT
+  INCOME_OPTIONS
+  INCOME_OTHERS
+  INCOME_REFUND
+  INCOME_SALARY
+  INCOME_TAX_REFUND
+}
+
+// A payee "learns" which account (and category) it's usually charged to —
+// the fix for the spreadsheet's manual habit of always defaulting to the same
+// card. Picking a payee prefills these; saving against a different one
+// overwrites it for next time.
+model Payee {
+  id               String       @id @default(cuid())
+  name             String       @unique
+  category         CategoryKey?
+  defaultAccount   Account?     @relation(fields: [defaultAccountId], references: [id], onDelete: SetNull)
+  defaultAccountId String?
+  createdAt        DateTime     @default(now())
+
+  transactions Transaction[]
+}
+
+// One row per logged charge/deposit/transfer. Saving one moves real money:
+// EXPENSE and INCOME move `account`'s balance by -amount / +amount; TRANSFER
+// moves it out of `account` and into `toAccount`.
+model Transaction {
+  id          String          @id @default(cuid())
+  type        TransactionType
+  // "YYYY-MM-DD"
+  date        String
+  // always positive; sign of the balance effect comes from `type`
+  amountCents Int
+  // EXPENSE only: someone paid you back (e.g. a spouse covering half a
+  // bill). Money-wise it's incoming, so the balance effect flips to +amount
+  // same as INCOME -- but it stays type EXPENSE and nets against that day's
+  // expense total instead of adding to income, matching how Marc logged
+  // these as negative expenses in his old tracker.
+  reimbursement Boolean       @default(false)
+  account     Account         @relation("TransactionAccount", fields: [accountId], references: [id])
+  accountId   String
+  // TRANSFER only
+  toAccount   Account?        @relation("TransactionToAccount", fields: [toAccountId], references: [id])
+  toAccountId String?
+  payee       Payee?          @relation(fields: [payeeId], references: [id], onDelete: SetNull)
+  payeeId     String?
+  category    CategoryKey?
+  memo        String?
+  createdAt   DateTime        @default(now())
+
+  @@index([date])
+  @@index([accountId])
 }

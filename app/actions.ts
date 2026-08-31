@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { parseDollarsToCents } from "@/lib/core/money";
 import { daysBetween, todayIso } from "@/lib/core/dates";
 import { bucketValueOn } from "@/lib/core/piggy";
+import { CATEGORY_KEYS } from "@/lib/core/categories";
+import type { CategoryKey } from "@prisma/client";
 
 const cents = z
   .string()
@@ -100,7 +102,7 @@ export async function saveAccount(formData: FormData) {
   const data = {
     name: f.name,
     type: f.type,
-    balanceCents: f.balance,
+    startingBalanceCents: f.balance,
     color: f.color || null,
     color2: f.color2 || null,
     sortOrder: f.sortOrder,
@@ -117,12 +119,6 @@ export async function saveAccount(formData: FormData) {
   } else {
     await prisma.account.create({ data });
   }
-}
-
-export async function updateAccountBalance(id: string, balanceCents: number) {
-  await actionLatency();
-  z.number().int().parse(balanceCents);
-  await prisma.account.update({ where: { id }, data: { balanceCents } });
 }
 
 export async function deleteAccount(id: string) {
@@ -315,6 +311,162 @@ export async function updateMonthPlanAmount(
     where: { month },
     create: { month, [column]: amountCents },
     update: { [column]: amountCents },
+  });
+}
+
+// --- transactions ---
+
+export async function getTransactionFormOptions() {
+  await actionLatency();
+  const [accounts, payees] = await Promise.all([
+    prisma.account.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.payee.findMany({ orderBy: { name: "asc" } }),
+  ]);
+  return { accounts, payees };
+}
+
+const transactionSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER"]),
+  date: isoDate,
+  amount: cents,
+  accountId: z.string().min(1),
+  toAccountId: z.string().optional(),
+  payeeName: z.string().optional(),
+  category: z.enum(CATEGORY_KEYS).optional(),
+  memo: z.string().optional(),
+  reimbursement: checkbox,
+});
+
+// Finds or creates the payee by name. A category picked this time updates the
+// payee's learned default for next time, same as the account it's charged to.
+async function resolvePayee(name: string | undefined, category: CategoryKey | undefined) {
+  const trimmedName = name?.trim();
+  if (!trimmedName) return null;
+
+  const existing = await prisma.payee.findUnique({ where: { name: trimmedName } });
+  if (existing) {
+    if (category && category !== existing.category) {
+      await prisma.payee.update({ where: { id: existing.id }, data: { category } });
+    }
+    return existing.id;
+  }
+  const created = await prisma.payee.create({ data: { name: trimmedName, category } });
+  return created.id;
+}
+
+export async function saveTransaction(formData: FormData) {
+  await actionLatency();
+  const f = transactionSchema.parse(fields(formData));
+
+  if (f.type === "TRANSFER" && (!f.toAccountId || f.toAccountId === f.accountId)) {
+    throw new Error("Transfer needs a different destination account");
+  }
+
+  const payeeId = f.type === "TRANSFER" ? null : await resolvePayee(f.payeeName, f.category);
+  // only meaningful for an expense -- someone paying you back for income or a
+  // transfer doesn't make sense
+  const reimbursement = f.type === "EXPENSE" && f.reimbursement;
+  const data = {
+    type: f.type,
+    date: f.date,
+    amountCents: f.amount,
+    reimbursement,
+    accountId: f.accountId,
+    toAccountId: f.type === "TRANSFER" ? f.toAccountId : null,
+    payeeId,
+    category: f.type === "TRANSFER" ? null : f.category,
+    memo: f.memo?.trim() || null,
+  };
+
+  // Account balances are never stored/mutated -- getAccountsWithBalances
+  // (lib/data.ts) computes them from startingBalanceCents plus every
+  // Transaction row, so saving one here is just a plain write.
+  if (f.id) {
+    await prisma.transaction.update({ where: { id: f.id }, data });
+  } else {
+    await prisma.transaction.create({ data });
+  }
+
+  // learn which account this payee is usually charged to
+  if (payeeId && f.type !== "TRANSFER") {
+    await prisma.payee.update({ where: { id: payeeId }, data: { defaultAccountId: f.accountId } });
+  }
+}
+
+export async function deleteTransaction(id: string) {
+  await actionLatency();
+  await prisma.transaction.deleteMany({ where: { id } });
+}
+
+// --- bulk import ---
+
+const importRowSchema = z.object({
+  date: isoDate,
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER"]),
+  reimbursement: z.boolean().default(false),
+  accountId: z.string().min(1),
+  toAccountId: z.string().optional(),
+  payeeName: z.string().nullable().optional(),
+  category: z.enum(CATEGORY_KEYS).nullable().optional(),
+  amountCents: z.number().int().positive(),
+  memo: z.string().optional(),
+});
+
+// One $transaction for the whole file: a partial import on failure would
+// leave the ledger in a half-imported state with no easy way to tell which
+// rows actually landed. Rows are expected pre-sorted by date (oldest first)
+// so payee learning (defaultAccountId) converges on the most recent account
+// by the end, same as saveTransaction does one row at a time. Account
+// balances need no adjustment here -- they're computed from every
+// Transaction row (see getAccountsWithBalances in lib/data.ts), not stored.
+export async function commitImport(rows: z.infer<typeof importRowSchema>[]) {
+  await actionLatency();
+  const parsed = z.array(importRowSchema).min(1).parse(rows);
+
+  await prisma.$transaction(async (tx) => {
+    for (const r of parsed) {
+      if (r.type === "TRANSFER" && (!r.toAccountId || r.toAccountId === r.accountId)) {
+        throw new Error("Transfer needs a different destination account");
+      }
+
+      let payeeId: string | null = null;
+      if (r.type !== "TRANSFER") {
+        const trimmedName = r.payeeName?.trim();
+        if (trimmedName) {
+          const existing = await tx.payee.findUnique({ where: { name: trimmedName } });
+          if (existing) {
+            payeeId = existing.id;
+            if (r.category && r.category !== existing.category) {
+              await tx.payee.update({ where: { id: existing.id }, data: { category: r.category } });
+            }
+          } else {
+            payeeId = (await tx.payee.create({ data: { name: trimmedName, category: r.category ?? null } })).id;
+          }
+        }
+      }
+
+      await tx.transaction.create({
+        data: {
+          type: r.type,
+          date: r.date,
+          amountCents: r.amountCents,
+          reimbursement: r.type === "EXPENSE" && r.reimbursement,
+          accountId: r.accountId,
+          toAccountId: r.type === "TRANSFER" ? r.toAccountId : null,
+          payeeId,
+          category: r.type === "TRANSFER" ? null : r.category,
+          memo: r.memo?.trim() || null,
+        },
+      });
+
+      if (payeeId && r.type !== "TRANSFER") {
+        await tx.payee.update({ where: { id: payeeId }, data: { defaultAccountId: r.accountId } });
+      }
+    }
   });
 }
 

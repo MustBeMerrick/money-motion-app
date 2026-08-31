@@ -17,14 +17,14 @@ async function main() {
 
   await prisma.account.createMany({
     data: [
-      { name: "Cash", type: "CASH", balanceCents: 7_300, color: "#85BB65", sortOrder: 0 },
-      { name: "Chase Checking", type: "CHECKING", balanceCents: 146_273, color: "#14b8a6", sortOrder: 1 },
-      { name: "Freedom", type: "CREDIT", balanceCents: 31_982, color: "#29ABE2", sortOrder: 2 },
-      { name: "Unlimited", type: "CREDIT", balanceCents: 0, color: "#6366f1", sortOrder: 3 },
-      { name: "Prime", type: "CREDIT", balanceCents: -8_726, color: "#a855f7", sortOrder: 4 },
-      { name: "Reserve", type: "CREDIT", balanceCents: -217_703, color: "#8b5cf6", sortOrder: 5 },
-      { name: "BofA", type: "CREDIT", balanceCents: 0, color: "#f43f5e", sortOrder: 6 },
-      { name: "Quicksilver", type: "CREDIT", balanceCents: 0, color: "#f59e0b", sortOrder: 7 },
+      { name: "Cash", type: "CASH", startingBalanceCents: 7_300, color: "#85BB65", sortOrder: 0 },
+      { name: "Chase Checking", type: "CHECKING", startingBalanceCents: 146_273, color: "#14b8a6", sortOrder: 1 },
+      { name: "Freedom", type: "CREDIT", startingBalanceCents: 31_982, color: "#29ABE2", sortOrder: 2 },
+      { name: "Unlimited", type: "CREDIT", startingBalanceCents: 0, color: "#6366f1", sortOrder: 3 },
+      { name: "Prime", type: "CREDIT", startingBalanceCents: -8_726, color: "#a855f7", sortOrder: 4 },
+      { name: "Reserve", type: "CREDIT", startingBalanceCents: -217_703, color: "#8b5cf6", sortOrder: 5 },
+      { name: "BofA", type: "CREDIT", startingBalanceCents: 0, color: "#f43f5e", sortOrder: 6 },
+      { name: "Quicksilver", type: "CREDIT", startingBalanceCents: 0, color: "#f59e0b", sortOrder: 7 },
     ],
   });
 
