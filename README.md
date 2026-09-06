@@ -1,9 +1,9 @@
 # MoneyMotion
 
-**Simple. Smart. In Motion.** — a private budgeting app that replaces a Numbers
-spreadsheet: accounts, recurring bills with hit/paid tracking, extra income,
-virtual piggy-bank buckets, a bill calendar, and a "how much can I spend today"
-daily budget.
+**Simple. Smart. In Motion.** — a private, single-user budgeting app that
+replaces a Numbers spreadsheet: accounts with a full transaction ledger,
+recurring bills with hit/paid tracking, extra income, virtual piggy-bank
+buckets, a bill calendar, and a "how much can I spend today" daily budget.
 
 ## Quick start
 
@@ -12,7 +12,7 @@ npm install
 cp .env.example .env  # DATABASE_URL for the local SQLite file
 npm run db:push     # create data/money-motion.sqlite from prisma/schema.prisma
 npm run db:seed     # optional: load sample data
-npm run dev         # http://localhost:3000
+npm run dev         # http://localhost:3000 (auth is skipped in dev)
 ```
 
 ## Pages
@@ -20,11 +20,14 @@ npm run dev         # http://localhost:3000
 | Page | What it does |
 |---|---|
 | `/` | Dashboard — daily budget, days left, income/expenses, bill checkboxes, buckets |
-| `/bills/weekly` `/bills/monthly` `/bills/annual` | Manage shared & non-shared recurring bills, one tab per frequency |
-| `/piggy` | Piggy bank buckets and their daily drip |
-| `/calendar` | Month grid of bills on their due dates |
 | `/accounts` | Cash, checking and credit card balances |
+| `/accounts/[id]` | Per-account transaction ledger — add/edit/delete transactions and transfers |
+| `/bills` `/bills/weekly` `/bills/monthly` `/bills/annual` | Manage shared & non-shared recurring bills, one tab per frequency |
+| `/piggy` | Piggy bank buckets and their daily drip |
+| `/calendar` | Month grid of bills on their due dates, with a day-transaction panel |
 | `/settings` | Salary and monthly savings target for the current month |
+| `/settings/import` | Import transactions from a Pocket Expense CSV export |
+| `/login` | Single-password gate (skipped when `NODE_ENV=development`) |
 
 ## How the daily budget works
 
