@@ -95,33 +95,11 @@ export default async function Dashboard() {
       </div>
 
       {/* hero cards — columns match the income/expenses row below */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[19rem_19rem_21rem]">
-        <section className="card">
-          <h2 className="card-title">Monthly Summary</h2>
-          <div className="flex flex-col gap-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-ink-2">Income</span>
-              <Money cents={s.plannedIncomeCents} tone="pos" />
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-2">Expenses</span>
-              <Money cents={s.plannedExpensesCents} tone="neg" />
-            </div>
-            <div className="flex justify-between">
-              <span className="text-ink-2">Virtual Adjustments</span>
-              <Money cents={s.piggyNetCents} signed tone="plain" />
-            </div>
-            <div className="mt-1.5 flex justify-between border-t border-line pt-2">
-              <span className="font-semibold">Net</span>
-              <Money cents={s.plannedNetCents} />
-            </div>
-          </div>
-        </section>
-
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-[19rem_21rem]">
         <section className="card bg-gradient-to-br from-surface to-forest/20">
           <h2 className="card-title">Daily Budget</h2>
-          <div className="flex items-baseline gap-2">
-            <div className="text-3xl font-bold text-accent tabular-nums">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <div className="text-2xl font-bold text-accent tabular-nums lg:text-3xl">
               {formatCents(s.dailyBudgetCents)}
             </div>
             {s.tomorrowBudgetCents !== null && (
@@ -131,13 +109,13 @@ export default async function Dashboard() {
             )}
           </div>
           <p className="mt-2 text-xs text-ink-2">
-            Available to spend / day · <Money cents={s.plannedNetCents} tone="plain" className="text-xs" /> left
+            <Money cents={s.plannedNetCents} tone="plain" className="text-xs" /> left
           </p>
         </section>
 
         <section className="card">
           <h2 className="card-title">Days Left</h2>
-          <div className="text-3xl font-bold">
+          <div className="text-2xl font-bold lg:text-3xl">
             {s.daysLeft}
             <span className="ml-1.5 text-sm font-medium text-ink-3">of {s.daysInMonth} days</span>
           </div>
