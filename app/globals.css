@@ -78,6 +78,15 @@ body {
   }
 }
 
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 @layer components {
   .card {
     @apply rounded-2xl border border-line bg-surface p-5;

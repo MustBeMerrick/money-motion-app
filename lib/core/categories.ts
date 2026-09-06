@@ -178,3 +178,64 @@ export function categoryLabel(key: string | null | undefined): string | null {
 export function categoryEmoji(key: string | null | undefined): string | null {
   return key ? (CATEGORY_INFO[key as CategoryKey]?.emoji ?? null) : null;
 }
+
+// Rough color association for each category's emoji — not an exact color
+// pick, just the hue it reads as (a red car, a green dollar bill). Multi-hue
+// emoji (confetti, a gift bow) get two or three stops instead of one; the
+// caller blends these into the surface color rather than using them flat.
+const CATEGORY_COLOR: Partial<Record<CategoryKey, string[]>> = {
+  AUTO: ["#EF4444"],
+  BANK_CHARGE: ["#64748B"],
+  BEAUTY: ["#EC4899"],
+  CHARITY: ["#FBBF24"],
+  CHILDCARE: ["#38BDF8"],
+  CLOTHING: ["#3B82F6"],
+  COFFEE: ["#92400E"],
+  CREDIT_CARD_PAYMENT: ["#6366F1", "#8B5CF6"],
+  DESSERT: ["#F472B6", "#FDE68A"],
+  DEVICES: ["#64748B"],
+  DRINKS: ["#FB923C", "#F87171"],
+  EATING_OUT: ["#FB923C"],
+  EDUCATION: ["#EAB308"],
+  ENTERTAINMENT: ["#A78BFA"],
+  GAMBLING: ["#EF4444", "#F8FAFC"],
+  GIFTS: ["#F87171", "#FBBF24"],
+  GROCERIES: ["#22C55E"],
+  HEALTH_FITNESS: ["#10B981"],
+  HOME_REPAIR: ["#D97706"],
+  HOUSEHOLD: ["#FB7185"],
+  INSURANCE: ["#3B82F6"],
+  INTEREST: ["#22C55E"],
+  LOAN: ["#16A34A"],
+  MEDICAL: ["#EF4444"],
+  MISC: ["#8FA3B8"],
+  MORTGAGE: ["#B45309"],
+  OTHERS: ["#64748B"],
+  PETS: ["#D97706"],
+  RENT: ["#EAB308"],
+  SAVINGS: ["#F9A8D4"],
+  TAX: ["#94A3B8"],
+  TRANSPORT: ["#FACC15"],
+  TRAVEL: ["#38BDF8"],
+  TV: ["#6366F1"],
+  UTILITIES: ["#FBBF24"],
+  WEDDING: ["#FBBF24", "#93C5FD"],
+  INCOME_ASCAP: ["#A78BFA"],
+  INCOME_BONUS: ["#F87171", "#FBBF24", "#38BDF8"],
+  INCOME_GAMBLING: ["#EF4444", "#F8FAFC"],
+  INCOME_GIFT: ["#F87171", "#FBBF24"],
+  INCOME_OPTIONS: ["#22C55E"],
+  INCOME_OTHERS: ["#64748B"],
+  INCOME_REFUND: ["#38BDF8"],
+  INCOME_SALARY: ["#92400E"],
+  INCOME_TAX_REFUND: ["#22C55E"],
+};
+
+// Subcategories (e.g. AUTO_GAS) inherit their parent's color since they
+// share its emoji.
+export function categoryColor(key: string | null | undefined): string[] | null {
+  if (!key) return null;
+  const info = CATEGORY_INFO[key as CategoryKey];
+  const colorKey = (info?.parent ?? key) as CategoryKey;
+  return CATEGORY_COLOR[colorKey] ?? null;
+}

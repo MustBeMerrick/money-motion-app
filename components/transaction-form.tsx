@@ -2,11 +2,18 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, X } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import type { Account, Payee, TransactionType } from "@prisma/client";
 import { getTransactionFormOptions, saveTransaction } from "@/app/actions";
 import { evaluateArithmetic } from "@/lib/core/arithmetic";
-import { CATEGORY_TREE, INCOME_CATEGORY_TREE, categoryEmoji, categoryLabel, type CategoryKey } from "@/lib/core/categories";
+import {
+  CATEGORY_TREE,
+  INCOME_CATEGORY_TREE,
+  categoryColor,
+  categoryEmoji,
+  categoryLabel,
+  type CategoryKey,
+} from "@/lib/core/categories";
 import { todayIso } from "@/lib/core/dates";
 import { useScheduleRefresh } from "@/lib/refresh-context";
 
@@ -46,6 +53,104 @@ const TYPE_ACCENT: Record<UiType, string> = {
   TRANSFER: "text-info",
   REIMBURSE: "text-warn",
 };
+
+// Blends the category's hue(s) into the surface color rather than using them
+// flat — a subtle tint, not a colored block, so the modal still reads as
+// this app's dark theme.
+function categoryBackground(colors: string[] | null): string | undefined {
+  if (!colors || colors.length === 0) return undefined;
+  if (colors.length === 1) {
+    return `linear-gradient(160deg, color-mix(in srgb, ${colors[0]} 65%, var(--surface)), var(--surface) 90%)`;
+  }
+  const stops = colors
+    .map((c, i) => `color-mix(in srgb, ${c} 60%, var(--surface)) ${Math.round((i / (colors.length - 1)) * 90)}%`)
+    .join(", ");
+  return `linear-gradient(160deg, ${stops}, var(--surface) 100%)`;
+}
+
+function accountSwatch(a: Account): string {
+  const color = a.color ?? "var(--ink-3)";
+  return a.color2 && a.color2 !== color ? `linear-gradient(120deg, ${color}, ${a.color2})` : color;
+}
+
+// Native <select> can't style individual <option>s (no per-row swatch, cross
+// browser), so the account pickers use this custom listbox instead — closes
+// on outside click or Escape, same as any dropdown.
+function AccountSelect({
+  accounts,
+  value,
+  onChange,
+  className = "",
+}: {
+  accounts: Account[];
+  value: string;
+  onChange: (id: string) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = accounts.find((a) => a.id === value);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="input flex cursor-pointer items-center gap-2 text-left"
+      >
+        <span
+          className="h-4 w-4 shrink-0 rounded-full border border-line-2"
+          style={{ background: selected ? accountSwatch(selected) : "var(--ink-3)" }}
+        />
+        <span className="min-w-0 flex-1 truncate">{selected?.name ?? "Select account"}</span>
+        <ChevronDown size={14} className="shrink-0 text-ink-3" />
+      </button>
+      {open && (
+        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-line-2 bg-surface-2 py-1 shadow-lg shadow-black/40">
+          {accounts.map((a) => (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(a.id);
+                  setOpen(false);
+                }}
+                className={`flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-surface ${
+                  a.id === value ? "text-lime" : "text-ink"
+                }`}
+              >
+                <span
+                  className="h-4 w-4 shrink-0 rounded-full border border-line-2"
+                  style={{ background: accountSwatch(a) }}
+                />
+                <span className="min-w-0 flex-1 truncate">{a.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function TransactionModal({
   onClose,
@@ -93,6 +198,7 @@ export function TransactionModal({
   // text across browsers, unlike an explicit smaller font-size apparently is.
   const categoryTree = type === "INCOME" ? INCOME_CATEGORY_TREE : CATEGORY_TREE;
   const categoryDisplay = category ? categoryLabel(category) : "No category";
+  const modalBackground = type !== "TRANSFER" ? categoryBackground(categoryColor(category)) : undefined;
   const categoryMeasureRef = useRef<HTMLSelectElement>(null);
   const [categoryWidth, setCategoryWidth] = useState<number>();
   const [isDesktop, setIsDesktop] = useState(false);
@@ -183,10 +289,23 @@ export function TransactionModal({
   // income rows, in this app). Rendering at the body root sidesteps that.
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 lg:items-center lg:p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="card w-full max-w-md border-line-2 shadow-2xl">
+      {/* mobile: full-screen sheet sliding up from the bottom, capped short
+          of the top so the dimmed app behind it stays visible as a cue this
+          is a sub-screen, not a new page — desktop keeps the small centered
+          popup */}
+      <div
+        className="card h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-b-none border-line-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl transition-[background] duration-500 lg:h-auto lg:max-w-md lg:rounded-2xl lg:pb-5"
+        style={{
+          ...(!isDesktop ? { animation: "sheet-up 220ms ease-out" } : {}),
+          ...(modalBackground ? { background: modalBackground } : {}),
+        }}
+      >
+        <div className="-mx-5 -mt-5 mb-3 flex justify-center pt-2 lg:hidden">
+          <span className="h-1 w-10 rounded-full bg-line-2" />
+        </div>
         <div className="mb-4 flex items-center justify-between gap-2">
           <div className="flex gap-1 rounded-full bg-surface-2 p-1">
             {TYPES.map((t) => (
@@ -320,16 +439,8 @@ export function TransactionModal({
                 required
               />
               <div className="grid grid-cols-2 gap-3">
-                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="input">
-                  {options.accounts.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-                <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className="input">
-                  {options.accounts.map((a) => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
+                <AccountSelect accounts={options.accounts} value={accountId} onChange={setAccountId} />
+                <AccountSelect accounts={options.accounts} value={toAccountId} onChange={setToAccountId} />
               </div>
             </>
           ) : (
@@ -346,11 +457,12 @@ export function TransactionModal({
                 className="input w-36 shrink-0"
                 required
               />
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="input w-36 shrink-0">
-                {options.accounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
+              <AccountSelect
+                accounts={options.accounts}
+                value={accountId}
+                onChange={setAccountId}
+                className="w-36 shrink-0"
+              />
             </div>
           )}
 
