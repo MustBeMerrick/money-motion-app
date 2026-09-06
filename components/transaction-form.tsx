@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus, X } from "lucide-react";
 import type { Account, Payee, TransactionType } from "@prisma/client";
@@ -152,6 +152,98 @@ function AccountSelect({
   );
 }
 
+function flattenCategoryKeys(tree: typeof CATEGORY_TREE): CategoryKey[] {
+  return tree.flatMap((c) => [c.key, ...(c.children?.map((s) => s.key) ?? [])]);
+}
+
+// Native <select> shows the selected <option>'s own text in its closed
+// state — there's no way to show the emoji only in the open list and not
+// once picked, since both read from the same text. A custom listbox sidesteps
+// that (same pattern as AccountSelect above), and as a side effect a <button>
+// naturally sizes to its own content instead of a <select>'s widest option,
+// so the old hidden-measuring-select trick to keep the closed control from
+// ballooning to fit "Credit Card Payment" is no longer needed either.
+function CategorySelect({
+  tree,
+  value,
+  onChange,
+  className = "",
+}: {
+  tree: typeof CATEGORY_TREE;
+  value: CategoryKey | "";
+  onChange: (key: CategoryKey | "") => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const keys = flattenCategoryKeys(tree);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className={`relative inline-block max-w-full ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mt-1 max-w-full cursor-pointer truncate rounded-md border border-line-2 bg-surface-2 px-2 py-1 text-left text-xs text-ink-2 outline-none"
+      >
+        {value ? categoryLabel(value) : "No category"}
+      </button>
+      {open && (
+        <ul className="absolute z-20 mt-1 max-h-56 w-max max-w-[calc(100vw-2.5rem)] overflow-auto rounded-lg border border-line-2 bg-surface-2 py-1 text-xs shadow-lg shadow-black/40">
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              className={`block w-full cursor-pointer px-3 py-1.5 text-left whitespace-nowrap hover:bg-surface ${
+                value === "" ? "text-lime" : "text-ink"
+              }`}
+            >
+              No category
+            </button>
+          </li>
+          {keys.map((key) => (
+            <li key={key}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(key);
+                  setOpen(false);
+                }}
+                className={`block w-full cursor-pointer px-3 py-1.5 text-left whitespace-nowrap hover:bg-surface ${
+                  key === value ? "text-lime" : "text-ink"
+                }`}
+              >
+                {categoryEmoji(key)} {categoryLabel(key)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function TransactionModal({
   onClose,
   options,
@@ -180,27 +272,8 @@ export function TransactionModal({
   const type: TransactionType = uiType === "REIMBURSE" ? "EXPENSE" : uiType;
   const reimbursement = uiType === "REIMBURSE";
 
-  // Desktop: browsers size a closed <select> to fit its widest *option*, not
-  // the one currently selected -- so with "Credit Card Payment" in the list,
-  // picking "Wedding" still rendered a wide box. Measuring in a hidden
-  // <select> of our own (one option, same classes as the visible one) and
-  // setting the real select's width explicitly gets it to track the current
-  // text instead -- has to be a real select, not a measuring <span>, because
-  // mobile Safari renders a <select>'s text noticeably wider than identical
-  // text in a plain span, by an amount that grows with the string.
-  //
-  // Mobile: pinned to the payee field's width instead of chasing that
-  // per-device rendering gap with an ever-growing box. A shrink-to-fit font
-  // size was tried here too, computed the same way, but iOS Safari didn't
-  // budge on the select's rendered text size no matter what was set via JS
-  // or CSS -- so a too-long label (e.g. "Auto: Registration") truncates with
-  // an ellipsis instead, which is reliably respected for a closed select's
-  // text across browsers, unlike an explicit smaller font-size apparently is.
   const categoryTree = type === "INCOME" ? INCOME_CATEGORY_TREE : CATEGORY_TREE;
-  const categoryDisplay = category ? categoryLabel(category) : "No category";
   const modalBackground = type !== "TRANSFER" ? categoryBackground(categoryColor(category)) : undefined;
-  const categoryMeasureRef = useRef<HTMLSelectElement>(null);
-  const [categoryWidth, setCategoryWidth] = useState<number>();
   const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
@@ -210,14 +283,6 @@ export function TransactionModal({
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
-
-  useEffect(() => {
-    if (categoryMeasureRef.current) {
-      // small margin only for rounding/antialiasing -- the hidden select
-      // already renders its own dropdown arrow, so that's accounted for
-      setCategoryWidth(categoryMeasureRef.current.offsetWidth + 4);
-    }
-  }, [categoryDisplay]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -297,7 +362,7 @@ export function TransactionModal({
           is a sub-screen, not a new page — desktop keeps the small centered
           popup */}
       <div
-        className="card h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-b-none border-line-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl transition-[background] duration-500 lg:h-auto lg:max-w-md lg:rounded-2xl lg:pb-5"
+        className="card h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-b-none border-line-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl transition-[background] duration-500 lg:h-auto lg:max-w-md lg:overflow-visible lg:rounded-2xl lg:pb-5"
         style={{
           ...(!isDesktop ? { animation: "sheet-up 220ms ease-out" } : {}),
           ...(modalBackground ? { background: modalBackground } : {}),
@@ -359,41 +424,7 @@ export function TransactionModal({
                   className="input w-full"
                   required
                 />
-                {/* hidden measuring twin: same classes as the real select
-                    below, one option, left to size naturally -- desktop-only,
-                    to compute the pixel width that fits the current text */}
-                <select
-                  ref={categoryMeasureRef}
-                  aria-hidden
-                  tabIndex={-1}
-                  className="pointer-events-none invisible absolute w-auto rounded-md border border-line-2 px-2 py-1 text-xs"
-                >
-                  <option>{categoryDisplay}</option>
-                </select>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as CategoryKey | "")}
-                  style={isDesktop ? { width: categoryWidth } : undefined}
-                  className="mt-1 w-full max-w-full truncate rounded-md border border-line-2 bg-surface-2 px-2 py-1 text-xs text-ink-2 outline-none"
-                >
-                  <option value="">No category</option>
-                  {categoryTree.map((c) => (
-                    <Fragment key={c.key}>
-                      <option value={c.key}>{c.label}</option>
-                      {c.children?.map((s) => (
-                        // an optgroup's label is a permanently disabled heading in
-                        // every browser, so "Auto" itself couldn't be selected from
-                        // one -- a plain option under the parent keeps it clickable.
-                        // Spelling out "Auto: Gas" (via categoryLabel) rather than
-                        // just "Gas" also means the closed select shows the same
-                        // "Parent: Child" text the ledger does.
-                        <option key={s.key} value={s.key}>
-                          {categoryLabel(s.key)}
-                        </option>
-                      ))}
-                    </Fragment>
-                  ))}
-                </select>
+                <CategorySelect tree={categoryTree} value={category} onChange={setCategory} />
               </div>
               <input
                 value={amountRaw}
@@ -420,10 +451,19 @@ export function TransactionModal({
             </div>
           )}
 
+          {/* Browsers pop a datalist's suggestions open on focus, before any
+              typing -- leaving it empty until there's something to filter on
+              means a click into Payee shows nothing until you start typing.
+              Filtering to a prefix match ourselves (rather than trusting the
+              browser's own datalist matching, which is substring-anywhere in
+              Chrome/Firefox) keeps "C" from surfacing "Access Youth". */}
           <datalist id="payee-options">
-            {options.payees.map((p) => (
-              <option key={p.id} value={p.name} />
-            ))}
+            {payeeName.trim() &&
+              options.payees
+                .filter((p) => p.name.toLowerCase().startsWith(payeeName.trim().toLowerCase()))
+                .map((p) => (
+                  <option key={p.id} value={p.name} />
+                ))}
           </datalist>
 
           {type === "TRANSFER" ? (

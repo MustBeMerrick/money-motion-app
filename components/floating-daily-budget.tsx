@@ -23,7 +23,7 @@ export function FloatingDailyBudget({
   return (
     <div
       key={pathname}
-      className="card fixed right-3 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-40 w-auto rounded-full px-3.5 py-2 bg-gradient-to-br from-surface to-forest/20 shadow-lg shadow-black/40 lg:top-7 lg:right-8 lg:bottom-auto lg:w-56 lg:rounded-2xl lg:p-5"
+      className="card fixed right-3 bottom-[calc(6.75rem+env(safe-area-inset-bottom))] z-40 w-auto rounded-full px-3.5 py-2 bg-gradient-to-br from-surface to-forest/20 shadow-lg shadow-black/40 lg:top-7 lg:right-8 lg:bottom-auto lg:w-56 lg:rounded-2xl lg:p-5"
       style={{ animation: "slide-in-corner 300ms ease-out" }}
     >
       <h2 className="card-title hidden lg:flex">Daily Budget</h2>

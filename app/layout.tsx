@@ -49,7 +49,7 @@ export default function RootLayout({
       <body>
         <RefreshProvider>
           <Sidebar />
-          <main className="min-h-screen px-4 pt-5 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:ml-60 lg:px-8 lg:pt-7 lg:pb-7">
+          <main className="min-h-screen px-4 pt-5 pb-[calc(8rem+env(safe-area-inset-bottom))] lg:ml-60 lg:px-8 lg:pt-7 lg:pb-7">
             {children}
           </main>
         </RefreshProvider>

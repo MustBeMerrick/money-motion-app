@@ -221,7 +221,7 @@ export function Sidebar() {
       {/* mobile: bottom tab bar — Bills & Piggy on the left, Calendar &
           Accounts on the right, flanking the Add Transaction FAB, which
           pokes up above the bar so it still reads as the primary action */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-20 items-stretch border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-24 items-stretch border-t border-line bg-surface/95 pb-[calc(2.25rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
         <div className="flex flex-1 justify-evenly">
           {BOTTOM_NAV_LEFT.map((item) => (
             <BottomNavItem key={item.href} pathname={pathname} {...item} />
