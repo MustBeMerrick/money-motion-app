@@ -26,10 +26,10 @@ export function ExtraIncomeTable({ extras }: { extras: ExtraIncome[] }) {
   const [reordering, setReordering] = useState(false);
   const rowEls = useRef(new Map<string, HTMLTableRowElement>());
 
-  // keep local order in sync when the server data changes underneath us —
+  // keep local rows in sync when the server data changes underneath us —
   // but not mid-drag or while our own reorder is still in flight, or we'd
   // flash back to the stale order for the split second before it refreshes
-  if (rows.length !== extras.length || rows.some((r, i) => r.id !== extras[i]?.id)) {
+  if (rows.length !== extras.length || rows.some((r, i) => r !== extras[i])) {
     if (dragId === null && !reordering) setRows(extras);
   }
 
