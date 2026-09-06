@@ -40,12 +40,12 @@ function AccountCard({ account }: { account: AccountWithBalance }) {
       style={{ background }}
     >
       <Link href={`/accounts/${account.id}`} className="absolute inset-0 z-0" aria-label={`${account.name} transactions`} />
-      <div className="relative z-10 flex items-start justify-between">
-        <div className="pointer-events-none">
+      <div className="relative z-10 flex items-start justify-between pointer-events-none">
+        <div>
           <div className="font-semibold">{account.name}</div>
           <div className="text-xs text-white">{TYPE_LABEL[account.type]}</div>
         </div>
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 pointer-events-auto">
           <AccountForm initial={account} />
           <ConfirmDelete onDelete={deleteAccount.bind(null, account.id)} label="" />
         </span>
