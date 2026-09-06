@@ -24,19 +24,34 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+// On mobile, Bills, Piggy, Calendar and Accounts move to the bottom tab bar
+// (see BottomNav below) so the drawer only needs the leftovers.
+const MOBILE_MENU_NAV = NAV.filter((n) => n.href === "/" || n.href === "/settings");
+
+const BOTTOM_NAV_LEFT = [
+  { href: "/bills", label: "Bills", icon: ReceiptText },
+  { href: "/piggy", label: "Piggy", icon: PiggyBank },
+];
+const BOTTOM_NAV_RIGHT = [
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/accounts", label: "Accounts", icon: CreditCard },
+];
+
 function NavLinks({
+  items,
   pathname,
   onNavigate,
   // when set, each item eases in one after the next as the drawer opens
   stagger,
 }: {
+  items: typeof NAV;
   pathname: string;
   onNavigate?: () => void;
   stagger?: boolean;
 }) {
   return (
     <>
-      {NAV.map(({ href, label, icon: Icon }, i) => {
+      {items.map(({ href, label, icon: Icon }, i) => {
         // sections with subpages (e.g. /bills/monthly) keep their nav item lit
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (
@@ -74,6 +89,31 @@ function NavLinks({
         );
       })}
     </>
+  );
+}
+
+function BottomNavItem({
+  href,
+  label,
+  icon: Icon,
+  pathname,
+}: {
+  href: string;
+  label: string;
+  icon: typeof ReceiptText;
+  pathname: string;
+}) {
+  const active = pathname.startsWith(href);
+  return (
+    <Link
+      href={href}
+      className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
+        active ? "text-lime" : "text-ink-3"
+      }`}
+    >
+      <Icon size={30} strokeWidth={active ? 2.4 : 2} />
+      {label}
+    </Link>
   );
 }
 
@@ -127,7 +167,7 @@ export function Sidebar() {
         </Link>
         <AddTransactionFab label="Add Transaction" className="btn btn-primary mt-6 justify-center" />
         <nav className="mt-4 flex flex-col gap-1">
-          <NavLinks pathname={pathname} />
+          <NavLinks items={NAV} pathname={pathname} />
         </nav>
         <div className="mt-auto flex flex-col gap-3 px-3 text-[11px] leading-relaxed text-ink-3">
           <SignOut />
@@ -165,7 +205,12 @@ export function Sidebar() {
           }`}
         >
           <div className="flex flex-col gap-1 border-t border-line px-3 pt-2 pb-3">
-            <NavLinks pathname={pathname} onNavigate={() => setOpen(false)} stagger={open} />
+            <NavLinks
+              items={MOBILE_MENU_NAV}
+              pathname={pathname}
+              onNavigate={() => setOpen(false)}
+              stagger={open}
+            />
             <div className="mt-1 border-t border-line px-3 pt-3">
               <SignOut />
             </div>
@@ -173,11 +218,24 @@ export function Sidebar() {
         </nav>
       </header>
 
-      {/* mobile: floating round FAB, bottom-center so it clears the daily
-          budget pill (bottom-right) and the safe-area home indicator */}
-      <AddTransactionFab
-        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-14 w-14 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-forest to-lime text-[#08130a] shadow-lg shadow-black/40 lg:hidden"
-      />
+      {/* mobile: bottom tab bar — Bills & Piggy on the left, Calendar &
+          Accounts on the right, flanking the Add Transaction FAB, which
+          pokes up above the bar so it still reads as the primary action */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-20 items-stretch border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+        <div className="flex flex-1 justify-evenly">
+          {BOTTOM_NAV_LEFT.map((item) => (
+            <BottomNavItem key={item.href} pathname={pathname} {...item} />
+          ))}
+        </div>
+        <div className="relative flex w-20 items-center justify-center">
+          <AddTransactionFab className="absolute -top-7 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-forest to-lime text-[#08130a] shadow-lg shadow-black/40" />
+        </div>
+        <div className="flex flex-1 justify-evenly">
+          {BOTTOM_NAV_RIGHT.map((item) => (
+            <BottomNavItem key={item.href} pathname={pathname} {...item} />
+          ))}
+        </div>
+      </nav>
     </>
   );
 }
