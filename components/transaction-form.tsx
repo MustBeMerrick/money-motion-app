@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus, X } from "lucide-react";
 import type { Account, Payee, TransactionType } from "@prisma/client";
@@ -272,8 +272,27 @@ export function TransactionModal({
   const type: TransactionType = uiType === "REIMBURSE" ? "EXPENSE" : uiType;
   const reimbursement = uiType === "REIMBURSE";
 
+  // Sliding pill behind the active tab label, tracking its actual pixel
+  // position/width (labels aren't equal width) instead of a fixed fraction.
+  const tabRefs = useRef<Partial<Record<UiType, HTMLButtonElement>>>({});
+  const [pillRect, setPillRect] = useState<{ left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = tabRefs.current[uiType];
+    if (el) setPillRect({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [uiType]);
+
   const categoryTree = type === "INCOME" ? INCOME_CATEGORY_TREE : CATEGORY_TREE;
   const modalBackground = type !== "TRANSFER" ? categoryBackground(categoryColor(category)) : undefined;
+
+  // Prefix match against what's typed so far, capped to three -- shown as
+  // tappable chips near Save instead of a native datalist popover, so each
+  // one can carry its usual category's emoji and color, not just its name.
+  const payeeSuggestions =
+    type !== "TRANSFER" && payeeName.trim()
+      ? options.payees
+          .filter((p) => p.name.toLowerCase().startsWith(payeeName.trim().toLowerCase()) && p.name !== payeeName)
+          .slice(0, 3)
+      : [];
   const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
@@ -362,20 +381,37 @@ export function TransactionModal({
           is a sub-screen, not a new page — desktop keeps the small centered
           popup */}
       <div
-        className="card h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-b-none border-line-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl transition-[background] duration-500 lg:h-auto lg:max-w-md lg:overflow-visible lg:rounded-2xl lg:pb-5"
+        className="card h-[calc(100dvh-3rem)] w-full overflow-y-auto rounded-b-none border-line-2 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl transition-[background-image] duration-500 lg:h-auto lg:max-w-md lg:overflow-visible lg:rounded-2xl lg:pb-5"
         style={{
           ...(!isDesktop ? { animation: "sheet-up 220ms ease-out" } : {}),
-          ...(modalBackground ? { background: modalBackground } : {}),
+          // backgroundImage only, never the `background` shorthand -- that
+          // shorthand also resets background-color to transparent on the
+          // inline declaration, so toggling it off (back to "No category")
+          // let the dimmed backdrop show through for a frame before the
+          // .card class's bg-surface caught back up. Leaving background-color
+          // alone (always from .card) and only swapping the image keeps the
+          // surface opaque throughout the transition.
+          backgroundImage: modalBackground ?? "none",
         }}
       >
         <div className="-mx-5 -mt-5 mb-3 flex justify-center pt-2 lg:hidden">
           <span className="h-1 w-10 rounded-full bg-line-2" />
         </div>
         <div className="mb-4 flex items-center justify-between gap-2">
-          <div className="flex gap-1 rounded-full bg-surface-2 p-1">
+          <div className="relative flex gap-1 rounded-full bg-surface-2 p-1">
+            {pillRect && (
+              <span
+                aria-hidden
+                className="absolute top-1 bottom-1 rounded-full bg-surface transition-[left,width] duration-200 ease-out"
+                style={{ left: pillRect.left, width: pillRect.width }}
+              />
+            )}
             {TYPES.map((t) => (
               <button
                 key={t.value}
+                ref={(el) => {
+                  if (el) tabRefs.current[t.value] = el;
+                }}
                 type="button"
                 onClick={() => {
                   setUiType(t.value);
@@ -383,8 +419,8 @@ export function TransactionModal({
                   // lists, so a selection from one wouldn't be valid in the other
                   setCategory("");
                 }}
-                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                  uiType === t.value ? `bg-surface ${TYPE_ACCENT[t.value]}` : "text-ink-3 hover:text-ink"
+                className={`relative z-10 cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                  uiType === t.value ? TYPE_ACCENT[t.value] : "text-ink-3 hover:text-ink"
                 }`}
               >
                 {t.label}
@@ -417,7 +453,6 @@ export function TransactionModal({
                   at its fair share of the row */}
               <div className="relative min-w-0 flex-1">
                 <input
-                  list="payee-options"
                   value={payeeName}
                   onChange={(e) => applyPayee(e.target.value)}
                   placeholder="Payee"
@@ -450,21 +485,6 @@ export function TransactionModal({
               />
             </div>
           )}
-
-          {/* Browsers pop a datalist's suggestions open on focus, before any
-              typing -- leaving it empty until there's something to filter on
-              means a click into Payee shows nothing until you start typing.
-              Filtering to a prefix match ourselves (rather than trusting the
-              browser's own datalist matching, which is substring-anywhere in
-              Chrome/Firefox) keeps "C" from surfacing "Access Youth". */}
-          <datalist id="payee-options">
-            {payeeName.trim() &&
-              options.payees
-                .filter((p) => p.name.toLowerCase().startsWith(payeeName.trim().toLowerCase()))
-                .map((p) => (
-                  <option key={p.id} value={p.name} />
-                ))}
-          </datalist>
 
           {type === "TRANSFER" ? (
             <>
@@ -524,6 +544,23 @@ export function TransactionModal({
               {saving ? "Saving…" : "Save"}
             </button>
           </div>
+
+          {payeeSuggestions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {payeeSuggestions.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => applyPayee(p.name)}
+                  style={{ background: categoryBackground(categoryColor(p.category)) ?? "var(--surface-2)" }}
+                  className="flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-line-2 px-2.5 py-1 text-xs text-ink-2 hover:border-lime/50"
+                >
+                  <span className="shrink-0">{categoryEmoji(p.category) ?? "🏷️"}</span>
+                  <span className="min-w-0 truncate">{p.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </form>
       </div>
     </div>,
