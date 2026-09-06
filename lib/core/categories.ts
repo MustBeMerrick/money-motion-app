@@ -55,6 +55,7 @@ export type CategoryKey =
   | "WEDDING"
   | "INCOME_ASCAP"
   | "INCOME_BONUS"
+  | "INCOME_CC_REWARDS"
   | "INCOME_GAMBLING"
   | "INCOME_GIFT"
   | "INCOME_OPTIONS"
@@ -143,6 +144,7 @@ export const CATEGORY_TREE: CategoryNode[] = [
 export const INCOME_CATEGORY_TREE: CategoryNode[] = [
   { key: "INCOME_ASCAP", label: "ASCAP", emoji: "🎵" },
   { key: "INCOME_BONUS", label: "Bonus", emoji: "🎉" },
+  { key: "INCOME_CC_REWARDS", label: "Credit Card Rewards", emoji: "💳" },
   { key: "INCOME_GAMBLING", label: "Gambling", emoji: "🎲" },
   { key: "INCOME_GIFT", label: "Gift", emoji: "🎁" },
   { key: "INCOME_OPTIONS", label: "Options", emoji: "📈" },
@@ -222,6 +224,7 @@ const CATEGORY_COLOR: Partial<Record<CategoryKey, string[]>> = {
   WEDDING: ["#FBBF24", "#93C5FD"],
   INCOME_ASCAP: ["#A78BFA"],
   INCOME_BONUS: ["#F87171", "#FBBF24", "#38BDF8"],
+  INCOME_CC_REWARDS: ["#6366F1", "#8B5CF6"],
   INCOME_GAMBLING: ["#EF4444", "#F8FAFC"],
   INCOME_GIFT: ["#F87171", "#FBBF24"],
   INCOME_OPTIONS: ["#22C55E"],
