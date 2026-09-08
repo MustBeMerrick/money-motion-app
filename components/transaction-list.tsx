@@ -115,6 +115,13 @@ export function TransactionList({
   emptyMessage?: string;
 }) {
   const scheduleRefresh = useScheduleRefresh();
+  // Desktop has a dedicated pencil button per row (EditTransactionButton) --
+  // mobile has no room for a second tap target next to swipe-to-delete, so
+  // the row itself opens the same edit modal instead.
+  const [editingRow, setEditingRow] = useState<LedgerRow | null>(null);
+  const [editOptions, setEditOptions] = useState<Awaited<ReturnType<typeof getTransactionFormOptions>> | null>(
+    null,
+  );
 
   if (rows.length === 0) {
     return <p className="text-sm text-ink-3">{emptyMessage}</p>;
@@ -123,6 +130,12 @@ export function TransactionList({
   async function remove(id: string) {
     await deleteTransaction(id);
     scheduleRefresh();
+  }
+
+  async function openEdit(row: LedgerRow) {
+    if (!row.edit) return;
+    setEditingRow(row);
+    setEditOptions(await getTransactionFormOptions());
   }
 
   function amount(row: LedgerRow, className = "") {
@@ -170,7 +183,10 @@ export function TransactionList({
       <div className="flex flex-col divide-y divide-line lg:hidden">
         {rows.map((row) => (
           <SwipeToDelete key={row.id} onDelete={() => remove(row.id)}>
-            <div className="flex items-center justify-between gap-3 bg-surface py-2.5">
+            <div
+              onClick={() => openEdit(row)}
+              className={`flex items-center justify-between gap-3 bg-surface py-2.5 ${row.edit ? "cursor-pointer active:bg-surface-2" : ""}`}
+            >
               <div className="min-w-0">
                 {!hideDate && <div className="text-xs text-ink-3">{row.dateLabel}</div>}
                 <Description row={row} hideCategoryLabel={hideCategoryLabel} />
@@ -182,6 +198,17 @@ export function TransactionList({
           </SwipeToDelete>
         ))}
       </div>
+
+      {editingRow?.edit && editOptions && (
+        <TransactionModal
+          options={editOptions}
+          editing={{ id: editingRow.id, ...editingRow.edit }}
+          onClose={() => {
+            setEditingRow(null);
+            setEditOptions(null);
+          }}
+        />
+      )}
     </>
   );
 }

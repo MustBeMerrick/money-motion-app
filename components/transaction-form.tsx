@@ -271,6 +271,35 @@ export function TransactionModal({
   const payeeInputRef = useRef<HTMLInputElement>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
 
+  // Amount field: (1) a click/tap always lands the cursor at the very
+  // beginning -- there's no reason to edit mid-amount -- and (2) the first
+  // character typed after that wipes the old amount instead of inserting
+  // into it, since re-focusing this field is almost always to replace a
+  // wrong guess, not tweak it. `amountFresh` tracks whether the next edit
+  // should still wipe; it arms on every focus/click and disarms itself
+  // after the first edit.
+  const amountFresh = useRef(false);
+  function armAmountFresh() {
+    amountFresh.current = true;
+  }
+  function snapAmountCursor(e: React.MouseEvent<HTMLInputElement>) {
+    const el = e.currentTarget;
+    setTimeout(() => el.setSelectionRange(0, 0), 0);
+  }
+  function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value;
+    if (amountFresh.current) {
+      amountFresh.current = false;
+      // typed at the front, so the new character(s) are whatever's left
+      // after stripping the old value back off the end
+      if (next.length > amountRaw.length && next.endsWith(amountRaw)) {
+        setAmountRaw(next.slice(0, next.length - amountRaw.length));
+        return;
+      }
+    }
+    setAmountRaw(next);
+  }
+
   // New transactions open straight into Payee, ready to type, and switching
   // tabs (Expense/Income/Reimburse all have a Payee field; Transfer doesn't)
   // refocuses it too, so the keyboard doesn't need a manual tap after every
@@ -494,7 +523,12 @@ export function TransactionModal({
               <input
                 ref={amountInputRef}
                 value={amountRaw}
-                onChange={(e) => setAmountRaw(e.target.value)}
+                onChange={handleAmountChange}
+                onFocus={armAmountFresh}
+                onClick={(e) => {
+                  armAmountFresh();
+                  snapAmountCursor(e);
+                }}
                 placeholder="0.00"
                 inputMode="decimal"
                 className="input w-28 text-right text-lg font-semibold"
@@ -509,7 +543,12 @@ export function TransactionModal({
               </span>
               <input
                 value={amountRaw}
-                onChange={(e) => setAmountRaw(e.target.value)}
+                onChange={handleAmountChange}
+                onFocus={armAmountFresh}
+                onClick={(e) => {
+                  armAmountFresh();
+                  snapAmountCursor(e);
+                }}
                 placeholder="0.00"
                 inputMode="decimal"
                 className="input ml-auto w-28 text-right text-lg font-semibold"

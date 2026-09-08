@@ -91,7 +91,7 @@ export function ExpenseDayCalendar({
               >
                 <span className={`text-sm font-semibold ${isToday ? "text-accent" : "text-ink-3"}`}>{day}</span>
                 {!!totals?.expenseCents && (
-                  <span className="truncate text-xs font-semibold tabular-nums text-neg">{formatCents(-totals.expenseCents)}</span>
+                  <span className="truncate text-xs font-semibold tabular-nums text-neg">{formatCents(Math.abs(totals.expenseCents))}</span>
                 )}
                 {!!totals?.incomeCents && (
                   <span className="truncate text-xs font-semibold tabular-nums text-pos">{formatCents(totals.incomeCents)}</span>

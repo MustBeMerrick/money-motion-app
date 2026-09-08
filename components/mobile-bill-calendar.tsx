@@ -124,7 +124,7 @@ export function MobileBillCalendar({
                 )}
                 {hasExpense && (
                   <span className="cal-expense text-[10px] leading-tight font-semibold tabular-nums text-neg">
-                    {compactDollars(-dayTotals.expenseCents)}
+                    {compactDollars(Math.abs(dayTotals.expenseCents))}
                   </span>
                 )}
                 {hasIncome && (
