@@ -19,7 +19,7 @@ export function CalendarViewToggle({
   header?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [view, setView] = useState<CalendarView>("bills");
+  const [view, setView] = useState<CalendarView>("expenses");
 
   return (
     <div data-view={view} className="flex min-h-0 flex-1 flex-col">
@@ -27,8 +27,8 @@ export function CalendarViewToggle({
       <div className="mb-3 flex w-fit gap-1 rounded-lg border border-line-2 bg-surface-2 p-1">
         {(
           [
-            { value: "bills", label: "Bill View" },
             { value: "expenses", label: "Expense View" },
+            { value: "bills", label: "Bill View" },
           ] as const
         ).map((v) => (
           <button
