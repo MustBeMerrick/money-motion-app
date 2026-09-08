@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
 import {
   CalendarDays,
   CreditCard,
@@ -23,10 +22,6 @@ const NAV = [
   { href: "/accounts", label: "Accounts", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
-
-// On mobile, Bills, Piggy, Calendar and Accounts move to the bottom tab bar
-// (see BottomNav below) so the drawer only needs the leftovers.
-const MOBILE_MENU_NAV = NAV.filter((n) => n.href === "/" || n.href === "/settings");
 
 const BOTTOM_NAV_LEFT = [
   { href: "/bills", label: "Bills", icon: ReceiptText },
@@ -92,6 +87,31 @@ function NavLinks({
   );
 }
 
+function HeaderIconLink({
+  href,
+  label,
+  icon: Icon,
+  pathname,
+}: {
+  href: string;
+  label: string;
+  icon: typeof Settings;
+  pathname: string;
+}) {
+  const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      className={`shrink-0 rounded-lg p-2 transition-colors ${
+        active ? "bg-forest/25 text-lime" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
+      }`}
+    >
+      <Icon size={20} strokeWidth={active ? 2.4 : 2} />
+    </Link>
+  );
+}
+
 function BottomNavItem({
   href,
   label,
@@ -117,7 +137,7 @@ function BottomNavItem({
   );
 }
 
-function SignOut() {
+export function SignOut() {
   const router = useRouter();
   return (
     <button
@@ -135,24 +155,8 @@ function SignOut() {
   );
 }
 
-/** Three bars that fold into an X — the app is called MoneyMotion. */
-function MenuIcon({ open }: { open: boolean }) {
-  const bar = "absolute left-0 block h-0.5 w-5 rounded-full bg-current transition-all duration-300 ease-out";
-  return (
-    <span className="relative block h-4 w-5">
-      <span className={`${bar} ${open ? "top-1/2 -translate-y-1/2 rotate-45" : "top-0 rotate-0"}`} />
-      <span
-        className={`${bar} top-1/2 -translate-y-1/2 origin-left ${open ? "scale-x-0 opacity-0" : "scale-x-100 opacity-100"}`}
-      />
-      <span className={`${bar} ${open ? "top-1/2 -translate-y-1/2 -rotate-45" : "top-full -translate-y-full rotate-0"}`} />
-    </span>
-  );
-}
-
 export function Sidebar() {
   const pathname = usePathname();
-  // mobile drawer; a tap on a link closes it so the new page isn't hidden
-  const [open, setOpen] = useState(false);
 
   // the login page is the one screen reachable without a session, so it
   // shows no navigation
@@ -179,43 +183,17 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* mobile: the same nav collapsed into a top bar + hamburger drawer */}
-      <header className="sticky top-0 z-50 border-b border-line bg-surface/95 backdrop-blur lg:hidden">
-        <div className="flex h-14 items-center justify-between px-4">
-          <Link href="/" className="flex items-center gap-2">
-            <LogoMark size={30} />
-            <span className="text-base font-bold tracking-tight">MoneyMotion</span>
-          </Link>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-label={open ? "Close menu" : "Open menu"}
-            aria-expanded={open}
-            className={`-mr-1 cursor-pointer rounded-lg p-2 transition-colors duration-300 active:scale-90 ${
-              open ? "bg-forest/25 text-lime" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
-            }`}
-          >
-            <MenuIcon open={open} />
-          </button>
-        </div>
-        <nav
-          inert={!open}
-          className={`overflow-hidden transition-[max-height] duration-[420ms] ease-[var(--ease-liquid)] ${
-            open ? "max-h-[28rem]" : "max-h-0"
-          }`}
-        >
-          <div className="flex flex-col gap-1 border-t border-line px-3 pt-2 pb-3">
-            <NavLinks
-              items={MOBILE_MENU_NAV}
-              pathname={pathname}
-              onNavigate={() => setOpen(false)}
-              stagger={open}
-            />
-            <div className="mt-1 border-t border-line px-3 pt-3">
-              <SignOut />
-            </div>
-          </div>
-        </nav>
+      {/* mobile: Settings and Dashboard get their own corner buttons instead
+          of hiding behind a hamburger — the logo sits centered between them
+          (Sign out moved to the Settings page, the only thing the drawer was
+          otherwise for). */}
+      <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-line bg-surface/95 px-2 backdrop-blur lg:hidden">
+        <HeaderIconLink href="/settings" label="Settings" icon={Settings} pathname={pathname} />
+        <Link href="/" className="flex items-center gap-2">
+          <LogoMark size={30} />
+          <span className="text-base font-bold tracking-tight">MoneyMotion</span>
+        </Link>
+        <HeaderIconLink href="/" label="Dashboard" icon={LayoutDashboard} pathname={pathname} />
       </header>
 
       {/* mobile: bottom tab bar — Bills & Piggy on the left, Calendar &

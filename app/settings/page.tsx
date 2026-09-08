@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { DailyBudgetSlot } from "@/components/daily-budget-slot";
+import { SignOut } from "@/components/sidebar";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +24,16 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="card text-sm leading-relaxed text-ink-2">
+        <div className="card mb-4 text-sm leading-relaxed text-ink-2">
           <h2 className="card-title">About</h2>
           MoneyMotion is a private, single-user budget console. Data lives in a local SQLite file at{" "}
           <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">data/money-motion.sqlite</code>.
           Deployment to the home server uses <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">deploy/deploy.sh</code>.
+        </div>
+
+        <div className="card text-sm leading-relaxed text-ink-2">
+          <h2 className="card-title">Account</h2>
+          <SignOut />
         </div>
       </div>
     </>
