@@ -268,6 +268,20 @@ export function TransactionModal({
   const [memo, setMemo] = useState(editing?.memo ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const payeeInputRef = useRef<HTMLInputElement>(null);
+  const amountInputRef = useRef<HTMLInputElement>(null);
+
+  // New transactions open straight into Payee, ready to type, and switching
+  // tabs (Expense/Income/Reimburse all have a Payee field; Transfer doesn't)
+  // refocuses it too, so the keyboard doesn't need a manual tap after every
+  // tab switch. Editing an existing transaction leaves focus alone since the
+  // field being changed varies. `preventScroll` stops the browser's own
+  // scroll-the-input-into-view behavior, which is what was dragging the
+  // whole page (and this fixed modal along with it) upward the moment the
+  // keyboard opened.
+  useEffect(() => {
+    if (!editing && uiType !== "TRANSFER") payeeInputRef.current?.focus({ preventScroll: true });
+  }, [editing, uiType]);
 
   const type: TransactionType = uiType === "REIMBURSE" ? "EXPENSE" : uiType;
   const reimbursement = uiType === "REIMBURSE";
@@ -287,10 +301,17 @@ export function TransactionModal({
   // Prefix match against what's typed so far, capped to three -- shown as
   // tappable chips near Save instead of a native datalist popover, so each
   // one can carry its usual category's emoji and color, not just its name.
+  // Stratified by the active tab: a payee whose usual category belongs to
+  // the other tree (e.g. an income-only payee like "Reserve Credit") only
+  // ever surfaces on Income, never on Expense/Reimburse, and vice versa.
+  // Reimburse shares Expense's tree already (it's an EXPENSE under the
+  // hood), so a payee suggested under one is suggested under the other.
+  const categoryTreeKeys = flattenCategoryKeys(categoryTree);
   const payeeSuggestions =
     type !== "TRANSFER" && payeeName.trim()
       ? options.payees
           .filter((p) => p.name.toLowerCase().startsWith(payeeName.trim().toLowerCase()) && p.name !== payeeName)
+          .filter((p) => !p.category || categoryTreeKeys.includes(p.category as CategoryKey))
           .slice(0, 3)
       : [];
   const [isDesktop, setIsDesktop] = useState(false);
@@ -453,15 +474,25 @@ export function TransactionModal({
                   at its fair share of the row */}
               <div className="relative min-w-0 flex-1">
                 <input
+                  ref={payeeInputRef}
                   value={payeeName}
                   onChange={(e) => applyPayee(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    // Otherwise Enter's default behavior in a single-input
+                    // form is to submit -- before an amount's even entered.
+                    e.preventDefault();
+                    amountInputRef.current?.focus({ preventScroll: true });
+                  }}
                   placeholder="Payee"
+                  autoCapitalize="words"
                   className="input w-full"
                   required
                 />
                 <CategorySelect tree={categoryTree} value={category} onChange={setCategory} />
               </div>
               <input
+                ref={amountInputRef}
                 value={amountRaw}
                 onChange={(e) => setAmountRaw(e.target.value)}
                 placeholder="0.00"
@@ -551,7 +582,10 @@ export function TransactionModal({
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => applyPayee(p.name)}
+                  onClick={() => {
+                    applyPayee(p.name);
+                    amountInputRef.current?.focus({ preventScroll: true });
+                  }}
                   style={{ background: categoryBackground(categoryColor(p.category)) ?? "var(--surface-2)" }}
                   className="flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border border-line-2 px-2.5 py-1 text-xs text-ink-2 hover:border-lime/50"
                 >
@@ -577,30 +611,35 @@ export function AddTransactionFab({
   label?: string;
 }) {
   const [options, setOptions] = useState<Options | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  async function open() {
-    setLoading(true);
-    try {
-      setOptions(await getTransactionFormOptions());
-    } finally {
-      setLoading(false);
-    }
+  // Fetched on mount (and again on close, to pick up a payee just added)
+  // rather than on click: opening the modal must be a synchronous state
+  // update with no `await` in between, or the click's mobile user-activation
+  // expires before the Payee input's autofocus effect runs, and the browser
+  // silently refuses to raise the keyboard for a focus() outside a gesture.
+  useEffect(() => {
+    getTransactionFormOptions().then(setOptions);
+  }, []);
+
+  function close() {
+    setOpen(false);
+    getTransactionFormOptions().then(setOptions);
   }
 
   return (
     <>
       <button
         type="button"
-        onClick={open}
-        disabled={loading}
+        onClick={() => setOpen(true)}
+        disabled={!options}
         aria-label="Add transaction"
         className={className}
       >
         <Plus size={label ? 15 : 20} strokeWidth={2.5} />
         {label}
       </button>
-      {options && <TransactionModal options={options} onClose={() => setOptions(null)} />}
+      {open && options && <TransactionModal options={options} onClose={close} />}
     </>
   );
 }
