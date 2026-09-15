@@ -248,10 +248,12 @@ export function TransactionModal({
   onClose,
   options,
   editing,
+  initialDate,
 }: {
   onClose: () => void;
   options: Options;
   editing?: EditingTransaction;
+  initialDate?: string;
 }) {
   const scheduleRefresh = useScheduleRefresh();
   const [uiType, setUiType] = useState<UiType>(
@@ -260,7 +262,7 @@ export function TransactionModal({
   const [payeeName, setPayeeName] = useState(editing?.payeeName ?? "");
   const [category, setCategory] = useState<CategoryKey | "">(editing?.category ?? "");
   const [amountRaw, setAmountRaw] = useState(editing ? (editing.amountCents / 100).toFixed(2) : "");
-  const [date, setDate] = useState(editing?.date ?? todayIso());
+  const [date, setDate] = useState(editing?.date ?? initialDate ?? todayIso());
   const [accountId, setAccountId] = useState(editing?.accountId ?? options.accounts[0]?.id ?? "");
   const [toAccountId, setToAccountId] = useState(
     editing?.toAccountId ?? options.accounts.find((a) => a.id !== options.accounts[0]?.id)?.id ?? "",
@@ -339,7 +341,7 @@ export function TransactionModal({
   const payeeSuggestions =
     type !== "TRANSFER" && payeeName.trim()
       ? options.payees
-          .filter((p) => p.name.toLowerCase().startsWith(payeeName.trim().toLowerCase()) && p.name !== payeeName)
+          .filter((p) => p.name.toLowerCase().startsWith(payeeName.trim().toLowerCase()))
           .filter((p) => !p.category || categoryTreeKeys.includes(p.category as CategoryKey))
           .slice(0, 3)
       : [];
@@ -359,9 +361,11 @@ export function TransactionModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Picking a known payee learns its usual category and account — the fix for
-  // the spreadsheet habit of always defaulting to the same card.
-  function applyPayee(name: string) {
+  // Picking a known payee (by explicitly tapping its chip) learns its usual
+  // category and account — the fix for the spreadsheet habit of always
+  // defaulting to the same card. Typing the same text out by hand must NOT
+  // trigger this, or the fields silently repopulate mid-edit.
+  function selectPayee(name: string) {
     setPayeeName(name);
     const match = options.payees.find((p) => p.name.toLowerCase() === name.trim().toLowerCase());
     if (!match) return;
@@ -505,7 +509,7 @@ export function TransactionModal({
                 <input
                   ref={payeeInputRef}
                   value={payeeName}
-                  onChange={(e) => applyPayee(e.target.value)}
+                  onChange={(e) => setPayeeName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key !== "Enter") return;
                     // Otherwise Enter's default behavior in a single-input
@@ -622,7 +626,7 @@ export function TransactionModal({
                   key={p.id}
                   type="button"
                   onClick={() => {
-                    applyPayee(p.name);
+                    selectPayee(p.name);
                     amountInputRef.current?.focus({ preventScroll: true });
                   }}
                   style={{ background: categoryBackground(categoryColor(p.category)) ?? "var(--surface-2)" }}
@@ -645,9 +649,13 @@ export function TransactionModal({
 export function AddTransactionFab({
   className = "",
   label,
+  initialDate,
 }: {
   className?: string;
   label?: string;
+  // Defaults the new transaction's date -- e.g. the day selected in a
+  // calendar view -- instead of always defaulting to today.
+  initialDate?: string;
 }) {
   const [options, setOptions] = useState<Options | null>(null);
   const [open, setOpen] = useState(false);
@@ -678,7 +686,7 @@ export function AddTransactionFab({
         <Plus size={label ? 15 : 20} strokeWidth={2.5} />
         {label}
       </button>
-      {open && options && <TransactionModal options={options} onClose={close} />}
+      {open && options && <TransactionModal options={options} onClose={close} initialDate={initialDate} />}
     </>
   );
 }

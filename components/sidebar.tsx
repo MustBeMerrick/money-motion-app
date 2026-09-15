@@ -13,12 +13,13 @@ import {
 } from "lucide-react";
 import { LogoMark, Wordmark } from "./logo";
 import { AddTransactionFab } from "./transaction-form";
+import { useSelectedDate } from "@/lib/selected-date-context";
 
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/bills", label: "Bills & Recurring", icon: ReceiptText },
   { href: "/piggy", label: "Piggy Bank", icon: PiggyBank },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/accounts", label: "Accounts", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -157,6 +158,7 @@ export function SignOut() {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { selectedDate } = useSelectedDate();
 
   // the login page is the one screen reachable without a session, so it
   // shows no navigation
@@ -169,7 +171,11 @@ export function Sidebar() {
         <Link href="/" className="px-2">
           <Wordmark />
         </Link>
-        <AddTransactionFab label="Add Transaction" className="btn btn-primary mt-6 justify-center" />
+        <AddTransactionFab
+          label="Add Transaction"
+          className="btn btn-primary mt-6 justify-center"
+          initialDate={selectedDate ?? undefined}
+        />
         <nav className="mt-4 flex flex-col gap-1">
           <NavLinks items={NAV} pathname={pathname} />
         </nav>
@@ -206,7 +212,10 @@ export function Sidebar() {
           ))}
         </div>
         <div className="relative flex w-20 items-center justify-center">
-          <AddTransactionFab className="absolute -top-7 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-forest to-lime text-[#08130a] shadow-lg shadow-black/40" />
+          <AddTransactionFab
+            className="absolute -top-7 flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-forest to-lime text-[#08130a] shadow-lg shadow-black/40"
+            initialDate={selectedDate ?? undefined}
+          />
         </div>
         <div className="flex flex-1 justify-evenly">
           {BOTTOM_NAV_RIGHT.map((item) => (

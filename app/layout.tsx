@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { RefreshProvider } from "@/lib/refresh-context";
+import { SelectedDateProvider } from "@/lib/selected-date-context";
 import { Sidebar } from "@/components/sidebar";
 import "./globals.css";
 
@@ -48,10 +49,12 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <body>
         <RefreshProvider>
-          <Sidebar />
-          <main className="min-h-screen px-4 pt-5 pb-[calc(8rem+env(safe-area-inset-bottom))] lg:ml-60 lg:px-8 lg:pt-7 lg:pb-7">
-            {children}
-          </main>
+          <SelectedDateProvider>
+            <Sidebar />
+            <main className="min-h-screen px-4 pt-5 pb-[calc(8rem+env(safe-area-inset-bottom))] lg:ml-60 lg:px-8 lg:pt-7 lg:pb-7">
+              {children}
+            </main>
+          </SelectedDateProvider>
         </RefreshProvider>
       </body>
     </html>

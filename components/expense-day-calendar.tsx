@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { formatCents } from "@/lib/core/money";
+import { useSelectedDate } from "@/lib/selected-date-context";
 import { TransactionList, type LedgerRow } from "@/components/transaction-list";
 
 export type DayTotals = { expenseCents: number; incomeCents: number };
@@ -40,12 +41,23 @@ export function ExpenseDayCalendar({
   const [selected, setSelected] = useState<number | null>(null);
   const weeks = Math.ceil((firstWeekday + daysInMonth) / 7);
   const [y, m] = month.split("-").map(Number);
+  const { setSelectedDate } = useSelectedDate();
 
   const selectedRows = selected ? (itemsByDay[selected] ?? []) : [];
 
+  function select(day: number | null) {
+    setSelected(day);
+    setSelectedDate(day === null ? null : `${month}-${String(day).padStart(2, "0")}`);
+  }
+
+  // Clears the global Add Transaction button's date override on unmount, so
+  // leaving the calendar (or switching to the mobile calendar) doesn't leave
+  // it pinned to a day that's no longer visibly selected anywhere.
+  useEffect(() => () => setSelectedDate(null), [setSelectedDate]);
+
   useEffect(() => {
     if (selected === null) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSelected(null);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && select(null);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selected]);
@@ -84,7 +96,7 @@ export function ExpenseDayCalendar({
               <button
                 key={i}
                 type="button"
-                onClick={() => setSelected(day === selected ? null : day)}
+                onClick={() => select(day === selected ? null : day)}
                 className={`flex min-w-0 cursor-pointer flex-col items-end gap-1 overflow-hidden border-r border-b border-line-2 p-2 text-right last:border-r-0 [&:nth-child(7n)]:border-r-0 ${
                   isSelected ? "bg-lime/10" : isToday ? "bg-forest/15" : "bg-surface-2/30 hover:bg-surface-2/60"
                 }`}
@@ -116,7 +128,7 @@ export function ExpenseDayCalendar({
               <button
                 type="button"
                 aria-label="Close"
-                onClick={() => setSelected(null)}
+                onClick={() => select(null)}
                 className="cursor-pointer rounded-md p-1 text-ink-3 hover:bg-surface-2 hover:text-ink"
               >
                 <X size={18} />

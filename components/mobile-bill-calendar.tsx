@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatCents } from "@/lib/core/money";
+import { useSelectedDate } from "@/lib/selected-date-context";
 import type { DayTotals } from "./expense-day-calendar";
 import { TransactionList, type LedgerRow } from "./transaction-list";
 
@@ -55,6 +56,17 @@ export function MobileBillCalendar({
   const [selected, setSelected] = useState<number | null>(todayDay);
   const weeks = Math.ceil((firstWeekday + daysInMonth) / 7);
   const [y, m] = month.split("-").map(Number);
+  const { setSelectedDate } = useSelectedDate();
+
+  function select(day: number) {
+    setSelected(day);
+    setSelectedDate(`${month}-${String(day).padStart(2, "0")}`);
+  }
+
+  // Clears the global Add Transaction button's date override on unmount, so
+  // leaving the calendar (or switching to the desktop calendar) doesn't leave
+  // it pinned to a day that's no longer visibly selected anywhere.
+  useEffect(() => () => setSelectedDate(null), [setSelectedDate]);
 
   const dayBills = selected ? (billCharges[selected] ?? []) : [];
   const dayBillTotal = dayBills.reduce((sum, c) => sum + c.amountCents, 0);
@@ -94,7 +106,7 @@ export function MobileBillCalendar({
               <button
                 key={i}
                 type="button"
-                onClick={() => setSelected(day)}
+                onClick={() => select(day)}
                 className={`flex h-14 cursor-pointer flex-col items-center gap-0.5 pt-1.5 ${
                   isToday ? "bg-forest/20" : ""
                 }`}
