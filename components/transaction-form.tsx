@@ -263,9 +263,10 @@ export function TransactionModal({
   const [category, setCategory] = useState<CategoryKey | "">(editing?.category ?? "");
   const [amountRaw, setAmountRaw] = useState(editing ? (editing.amountCents / 100).toFixed(2) : "");
   const [date, setDate] = useState(editing?.date ?? initialDate ?? todayIso());
-  const [accountId, setAccountId] = useState(editing?.accountId ?? options.accounts[0]?.id ?? "");
+  const defaultAccountId = options.accounts.find((a) => a.name === "Reserve")?.id ?? options.accounts[0]?.id ?? "";
+  const [accountId, setAccountId] = useState(editing?.accountId ?? defaultAccountId);
   const [toAccountId, setToAccountId] = useState(
-    editing?.toAccountId ?? options.accounts.find((a) => a.id !== options.accounts[0]?.id)?.id ?? "",
+    editing?.toAccountId ?? options.accounts.find((a) => a.id !== defaultAccountId)?.id ?? "",
   );
   const [memo, setMemo] = useState(editing?.memo ?? "");
   const [error, setError] = useState<string | null>(null);
