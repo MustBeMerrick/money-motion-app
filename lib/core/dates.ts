@@ -72,6 +72,17 @@ export function semiMonthlyPayDates(month: IsoMonth): { mid: IsoDate; end: IsoDa
   };
 }
 
+// The next of the two semi-monthly paydays on or after today — rolling into
+// next month's mid-month payday on the rare day or two after the end-of-month
+// payday has already passed.
+export function nextPayDate(today: IsoDate): IsoDate {
+  const month = monthOf(today);
+  const { mid, end } = semiMonthlyPayDates(month);
+  if (today <= mid) return mid;
+  if (today <= end) return end;
+  return semiMonthlyPayDates(addMonths(month, 1)).mid;
+}
+
 export function addMonths(month: IsoMonth, delta: number): IsoMonth {
   const [y, m] = month.split("-").map(Number);
   const total = y * 12 + (m - 1) + delta;

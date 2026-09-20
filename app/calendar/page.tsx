@@ -39,8 +39,8 @@ export default async function CalendarPage({
     // reimbursements) and separately-logged income — mirroring the day
     // rollup Marc described when reimbursements were first designed.
     prisma.transaction.findMany({
-      where: { type: { in: ["EXPENSE", "INCOME"] }, date: { startsWith: month } },
-      include: { payee: true, account: true },
+      where: { type: { in: ["EXPENSE", "INCOME", "TRANSFER"] }, date: { startsWith: month } },
+      include: { payee: true, account: true, toAccount: true },
       orderBy: { date: "asc" },
     }),
   ]);
@@ -122,29 +122,37 @@ export default async function CalendarPage({
   const itemsByDay: Record<number, LedgerRow[]> = {};
   for (const [day, rows] of rawByDay) {
     for (const t of sortDayRows(rows)) {
+      const isTransfer = t.type === "TRANSFER";
       const signedCents = t.type === "INCOME" || t.reimbursement ? t.amountCents : -t.amountCents;
-      const totals = dayTotals[day] ?? { expenseCents: 0, incomeCents: 0 };
-      if (t.type === "INCOME") totals.incomeCents += t.amountCents;
-      else totals.expenseCents += t.reimbursement ? -t.amountCents : t.amountCents;
-      dayTotals[day] = totals;
+      // a transfer just moves money between two of Marc's own accounts --
+      // net zero to the day's expense/income tally, but still shown below
+      // so it isn't invisible on the calendar
+      if (!isTransfer) {
+        const totals = dayTotals[day] ?? { expenseCents: 0, incomeCents: 0 };
+        if (t.type === "INCOME") totals.incomeCents += t.amountCents;
+        else totals.expenseCents += t.reimbursement ? -t.amountCents : t.amountCents;
+        dayTotals[day] = totals;
+      }
 
       (itemsByDay[day] ??= []).push({
         id: t.id,
         dateLabel: t.date,
-        isTransfer: false,
+        isTransfer,
+        otherAccountName: isTransfer ? t.toAccount?.name : undefined,
         reimbursement: t.reimbursement,
         payeeName: t.payee?.name,
         categoryLabel: categoryLabel(t.category),
         categoryEmoji: categoryEmoji(t.category),
         accountName: t.account.name,
         memo: t.memo,
-        signedCents,
+        signedCents: isTransfer ? t.amountCents : signedCents,
         edit: {
           type: t.type,
           reimbursement: t.reimbursement,
           date: t.date,
           amountCents: t.amountCents,
           accountId: t.accountId,
+          toAccountId: t.toAccountId,
           payeeName: t.payee?.name,
           category: t.category,
           memo: t.memo,

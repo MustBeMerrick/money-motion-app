@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { BadgeDollarSign, Handshake, UserRound } from "lucide-react";
-import { getDashboardData, type BillWithStatus } from "@/lib/data";
+import { BadgeDollarSign, Handshake, UserRound, Wallet } from "lucide-react";
+import { getCheckingBeforePayday, getDashboardData, type BillWithStatus } from "@/lib/data";
 import { WEEKDAY_SHORT, daysInMonth, monthLabel, semiMonthlyPayDates, shortDateLabel, type IsoMonth } from "@/lib/core/dates";
 import { billMonthlyCostCents, billOccurrencesInMonth } from "@/lib/core/month";
 import { formatCents } from "@/lib/core/money";
@@ -71,6 +71,7 @@ function DueLabel({ bill, month }: { bill: BillWithStatus; month: IsoMonth }) {
 export default async function Dashboard() {
   const { today, month, accounts, plan, bills, extras, buckets, snapshot: s } =
     await getDashboardData();
+  const checkingBeforePayday = await getCheckingBeforePayday(today);
 
   const liquidAccounts = accounts.filter((a) => a.type !== "CREDIT");
   const creditAccounts = accounts.filter((a) => a.type === "CREDIT");
@@ -94,37 +95,64 @@ export default async function Dashboard() {
         </div>
       </div>
 
-      {/* hero cards — columns match the income/expenses row below */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-[19rem_21rem]">
-        <section className="card bg-gradient-to-br from-surface to-forest/20">
-          <h2 className="card-title">Daily Budget</h2>
-          <div className="flex flex-wrap items-baseline gap-2">
-            <div className="text-2xl font-bold text-accent tabular-nums lg:text-3xl">
+      {/* hero cards — columns match the income/expenses row below. All three
+          share one row even on mobile, so padding/gap/type shrink below lg
+          to fit; they return to full size at the lg breakpoint. */}
+      <div className="grid grid-cols-3 gap-2 lg:gap-4 lg:grid-cols-[19rem_19rem_21rem]">
+        <section className="card bg-gradient-to-br from-surface to-forest/20 p-3 lg:p-5">
+          <h2 className="card-title mb-1.5 lg:mb-4">Daily Budget</h2>
+          <div className="flex flex-wrap items-baseline gap-1 lg:gap-2">
+            <div className="text-lg font-bold text-accent tabular-nums lg:text-3xl">
               {formatCents(s.dailyBudgetCents)}
             </div>
             {s.tomorrowBudgetCents !== null && (
-              <div className="text-base font-semibold text-ink-3 tabular-nums" title="Tomorrow's daily budget">
+              <div
+                className="text-[11px] font-semibold text-ink-3 tabular-nums lg:text-base"
+                title="Tomorrow's daily budget"
+              >
                 {formatCents(s.tomorrowBudgetCents)}
               </div>
             )}
           </div>
-          <p className="mt-2 text-xs text-ink-2">
-            <Money cents={s.plannedNetCents} tone="plain" className="text-xs" /> left
+          <p className="mt-1 text-[11px] text-ink-2 lg:mt-2 lg:text-xs">
+            <Money cents={s.plannedNetCents} tone="plain" className="text-[11px] lg:text-xs" /> left
           </p>
         </section>
 
-        <section className="card">
-          <h2 className="card-title">Days Left</h2>
-          <div className="text-2xl font-bold lg:text-3xl">
+        <section className="card p-3 lg:p-5">
+          <h2 className="card-title mb-1.5 lg:mb-4">Days Left</h2>
+          <div className="text-lg font-bold lg:text-3xl">
             {s.daysLeft}
-            <span className="ml-1.5 text-sm font-medium text-ink-3">of {s.daysInMonth} days</span>
+            <span className="ml-1 block text-[11px] font-medium text-ink-3 lg:ml-1.5 lg:inline lg:text-sm">
+              of {s.daysInMonth} days
+            </span>
           </div>
           <ProgressBar
             fraction={(s.daysInMonth - s.daysLeft) / s.daysInMonth}
-            className="mt-3.5"
+            className="mt-2 lg:mt-3.5"
           />
         </section>
 
+        {checkingBeforePayday && (
+          <section className="card p-3 lg:p-5">
+            <h2 className="card-title mb-1.5 lg:mb-4">
+              <Wallet size={13} className="text-lime" /> Left in Checking
+            </h2>
+            <div className="text-lg font-bold tabular-nums lg:text-3xl">
+              {formatCents(checkingBeforePayday.remainingCents)}
+            </div>
+            <p className="mt-1 flex flex-col gap-0.5 text-[11px] text-ink-2 lg:mt-2 lg:text-xs">
+              <span>
+                Checking:{" "}
+                <Money cents={checkingBeforePayday.balanceCents} tone="plain" className="text-[11px] lg:text-xs" />
+              </span>
+              <span>
+                Bills before {shortDateLabel(checkingBeforePayday.payday)}:{" "}
+                <Money cents={-checkingBeforePayday.billsCents} tone="plain" className="text-[11px] lg:text-xs" />
+              </span>
+            </p>
+          </section>
+        )}
       </div>
 
       {/* income / expenses / extra income */}

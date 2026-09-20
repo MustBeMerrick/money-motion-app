@@ -168,6 +168,19 @@ export function billMonthlyOutOfPocketCents(
   return billMonthlyCostCents(bill, month) - billMonthlyReimburseCents(bill, month);
 }
 
+// What's still going to come out of a single account (matched by the caller,
+// e.g. by color against Checking) before some date — the full charge for
+// every unhit occurrence due before that date, reimbursement aside: the
+// whole amount actually leaves the account on the due date regardless of
+// when a shared bill's other party pays you back.
+export function billsDueBeforeCents(bills: BillInput[], before: IsoDate): number {
+  const dueBefore = (o: OccurrenceStatus) => !o.hit && o.date < before;
+  return bills.reduce(
+    (sum, b) => sum + b.amountCents * b.occurrences.filter(dueBefore).length,
+    0,
+  );
+}
+
 export function monthSnapshot(input: SnapshotInput): MonthSnapshot {
   const { today, accounts, plan, extras, buckets } = input;
   const month = monthOf(today);

@@ -1,9 +1,10 @@
 import { cache } from "react";
 import type { Account, Bill, ExtraIncome, MonthPlan, PiggyBucket } from "@prisma/client";
 import { prisma } from "./prisma";
-import { monthOf, todayIso, type IsoDate, type IsoMonth } from "./core/dates";
+import { monthOf, nextPayDate, todayIso, type IsoDate, type IsoMonth } from "./core/dates";
 import {
   billDueDatesInMonth,
+  billsDueBeforeCents,
   monthSnapshot,
   type MonthSnapshot,
   type OccurrenceStatus,
@@ -101,6 +102,38 @@ export async function getBillsWithStatus(month: IsoMonth): Promise<BillWithStatu
       paid: occurrences.length > 0 && occurrences.every((o) => o.paid),
     };
   });
+}
+
+export interface CheckingBeforePayday {
+  payday: IsoDate;
+  balanceCents: number;
+  billsCents: number;
+  remainingCents: number;
+}
+
+// Which bills draw from Checking isn't a stored relation — like the
+// calendar's bill chips, a bill's color is picked to match the account it's
+// actually paid from, so "Rent" etc. share Checking's exact hex. Matching on
+// that is how we know which bills to subtract here.
+export async function getCheckingBeforePayday(today: IsoDate = todayIso()): Promise<CheckingBeforePayday | null> {
+  const month = monthOf(today);
+  const payday = nextPayDate(today);
+  const [accounts, currentBills] = await Promise.all([getAccountsWithBalances(), getBillsWithStatus(month)]);
+  const checking = accounts.find((a) => a.active && a.type === "CHECKING" && a.color);
+  if (!checking) return null;
+
+  const paydayMonth = monthOf(payday);
+  const extraBills = paydayMonth !== month ? await getBillsWithStatus(paydayMonth) : [];
+
+  const checkingBills = [...currentBills, ...extraBills].filter((b) => b.color === checking.color);
+  const billsCents = billsDueBeforeCents(checkingBills, payday);
+
+  return {
+    payday,
+    balanceCents: checking.balanceCents,
+    billsCents,
+    remainingCents: checking.balanceCents - billsCents,
+  };
 }
 
 // the layout (floating budget card) and the page both want this on every
