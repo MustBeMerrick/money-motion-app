@@ -132,7 +132,9 @@ export function monthLabel(month: IsoMonth): string {
   return `${MONTH_NAMES[m - 1]} ${y}`;
 }
 
-export function shortDateLabel(date: IsoDate): string {
-  const [, m, d] = date.split("-").map(Number);
-  return `${MONTH_NAMES[m - 1].slice(0, 3)} ${d}`;
+// Pass `today` to append the year when the date falls outside today's year.
+export function shortDateLabel(date: IsoDate, today?: IsoDate): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const label = `${MONTH_NAMES[m - 1].slice(0, 3)} ${d}`;
+  return today && y !== Number(today.slice(0, 4)) ? `${label}, ${y}` : label;
 }

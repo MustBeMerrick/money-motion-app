@@ -18,23 +18,25 @@ export function BucketCurrentStepper({ bucketId, cents }: { bucketId: string; ce
 
   return (
     <span className={`inline-flex items-center gap-1.5 ${pending ? "opacity-50" : ""}`}>
-      <button
-        type="button"
-        aria-label="Decrease by $1"
-        onClick={() => adjust(-STEP_CENTS)}
-        className="btn cursor-pointer px-1 py-0.5"
-      >
-        <Minus size={11} />
-      </button>
       <Money cents={shown} />
-      <button
-        type="button"
-        aria-label="Increase by $1"
-        onClick={() => adjust(STEP_CENTS)}
-        className="btn cursor-pointer px-1 py-0.5"
-      >
-        <Plus size={11} />
-      </button>
+      <span className="-my-0.5 flex flex-col gap-0.5">
+        <button
+          type="button"
+          aria-label="Increase by $1"
+          onClick={() => adjust(STEP_CENTS)}
+          className="btn cursor-pointer px-1 py-0.5"
+        >
+          <Plus size={11} />
+        </button>
+        <button
+          type="button"
+          aria-label="Decrease by $1"
+          onClick={() => adjust(-STEP_CENTS)}
+          className="btn cursor-pointer px-1 py-0.5"
+        >
+          <Minus size={11} />
+        </button>
+      </span>
     </span>
   );
 }

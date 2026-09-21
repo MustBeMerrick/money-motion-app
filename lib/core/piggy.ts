@@ -55,7 +55,10 @@ export function bucketProjectedEom(bucket: BucketLike, month: IsoMonth): number 
 // known (the principal may have been manually adjusted along the way).
 export function bucketProgress(bucket: BucketLike, date: IsoDate): number | null {
   if (bucket.targetCents === null) return null;
-  const base = bucket.originalCents ?? bucket.principalCents;
+  // a fund (negative target) with no original fills from zero; anchoring on
+  // principal would make the first deposit read as 0% forever
+  const fundFromZero = bucket.targetCents < 0 && bucket.principalCents <= 0;
+  const base = bucket.originalCents ?? (fundFromZero ? 0 : bucket.principalCents);
   const total = base - bucket.targetCents;
   if (total === 0) return 1;
   const remaining = bucketValueOn(bucket, date) - bucket.targetCents;

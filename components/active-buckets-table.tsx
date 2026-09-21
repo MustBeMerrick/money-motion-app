@@ -12,6 +12,7 @@ import {
 } from "@/lib/core/piggy";
 import { shortDateLabel, type IsoDate } from "@/lib/core/dates";
 import { Money, Pill, ProgressBar } from "@/components/ui";
+import { BucketRateStepper } from "@/components/bucket-rate-stepper";
 import { BucketCurrentStepper } from "@/components/bucket-current-stepper";
 import { BucketForm } from "@/components/forms";
 import { ArchiveButton } from "@/components/archive-button";
@@ -72,6 +73,15 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
     return ordered.map((b) => ({ bucket: b, daysLeft: bucketDaysLeft(b, today) }));
   }, [buckets, today, order]);
 
+  const totals = useMemo(
+    () => ({
+      current: buckets.reduce((sum, b) => sum + bucketValueOn(b, today), 0),
+      remaining: buckets.reduce((sum, b) => sum + (bucketRemaining(b, today) ?? 0), 0),
+      rate: buckets.reduce((sum, b) => sum + b.ratePerDayCents, 0),
+    }),
+    [buckets, today],
+  );
+
   return (
     <section className="card">
       <h2 className="card-title">
@@ -110,13 +120,7 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
               <div className="mt-2 flex items-center justify-between gap-3">
                 <BucketCurrentStepper bucketId={b.id} cents={bucketValueOn(b, today)} />
                 <span className="text-xs text-ink-3">
-                  {b.ratePerDayCents === 0 ? (
-                    "no drip"
-                  ) : (
-                    <>
-                      <Money cents={b.ratePerDayCents} signed className="text-xs" /> /day
-                    </>
-                  )}
+                  <BucketRateStepper bucketId={b.id} cents={b.ratePerDayCents} /> /day
                 </span>
               </div>
 
@@ -132,7 +136,7 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-2 text-[11px] text-ink-3">
                 <span>
                   {shortDateLabel(b.startDate)}
-                  {completes && daysLeft !== 0 ? ` → ${shortDateLabel(completes)}` : ""}
+                  {completes && daysLeft !== 0 ? ` → ${shortDateLabel(completes, today)}` : ""}
                   {remaining !== null && (
                     <>
                       {" · "}
@@ -148,12 +152,22 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
             </div>
           );
         })}
-        {rows.length === 0 && (
+        {rows.length === 0 ? (
           <p className="text-center text-xs text-ink-3">No buckets yet — add one to start dripping</p>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2 text-sm font-semibold">
+            <span>Total</span>
+            <span className="flex items-center gap-3">
+              <Money cents={totals.current} className="text-sm" />
+              <span className="text-xs font-normal text-ink-3">
+                <Money cents={totals.rate} signed className="text-xs" /> /day
+              </span>
+            </span>
+          </div>
         )}
       </div>
 
-      <table className="table-base hidden lg:table">
+      <table className="table-base hidden lg:table [&_td]:py-1">
         <thead>
           <tr>
             <th>Bucket</th>
@@ -186,18 +200,14 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
                   )}
                 </td>
                 <td className="text-right">
-                  {b.ratePerDayCents === 0 ? (
-                    <span className="text-ink-3">—</span>
-                  ) : (
-                    <Money cents={b.ratePerDayCents} signed className="text-xs" />
-                  )}
+                  <BucketRateStepper bucketId={b.id} cents={b.ratePerDayCents} />
                 </td>
                 <td className="pl-4 text-xs text-ink-3">{shortDateLabel(b.startDate)}</td>
                 <td className="text-right text-ink-2">
                   {daysLeft === 0 ? <Pill tone="pos">Done</Pill> : (daysLeft ?? "∞")}
                 </td>
                 <td className="text-right text-xs text-ink-3">
-                  {completes && daysLeft !== 0 ? shortDateLabel(completes) : "—"}
+                  {completes && daysLeft !== 0 ? shortDateLabel(completes, today) : "—"}
                 </td>
                 <td className="pl-5">
                   {progress === null ? (
@@ -228,6 +238,23 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
             </tr>
           )}
         </tbody>
+        {rows.length > 0 && (
+          <tfoot>
+            <tr className="border-t border-line font-semibold">
+              <td>Total</td>
+              <td className="text-right">
+                <Money cents={totals.current} className="text-sm" />
+              </td>
+              <td className="text-right">
+                <Money cents={totals.remaining} tone="plain" className="text-xs" />
+              </td>
+              <td className="text-right">
+                <Money cents={totals.rate} signed className="text-xs" />
+              </td>
+              <td colSpan={5} />
+            </tr>
+          </tfoot>
+        )}
       </table>
     </section>
   );

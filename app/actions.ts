@@ -276,6 +276,23 @@ export async function adjustBucketPrincipal(id: string, deltaCents: number) {
   });
 }
 
+// Same re-anchoring as saveBucket: today's value holds steady, only the
+// future slope moves.
+export async function adjustBucketRate(id: string, deltaCents: number) {
+  await actionLatency();
+  const existing = await prisma.piggyBucket.findUniqueOrThrow({ where: { id } });
+  const today = todayIso();
+  const days = Math.max(0, daysBetween(existing.startDate, today));
+  const ratePerDayCents = existing.ratePerDayCents + deltaCents;
+  await prisma.piggyBucket.update({
+    where: { id },
+    data: {
+      ratePerDayCents,
+      principalCents: bucketValueOn(existing, today) - ratePerDayCents * days,
+    },
+  });
+}
+
 export async function setBucketArchived(id: string, archived: boolean) {
   await actionLatency();
   await prisma.piggyBucket.update({ where: { id }, data: { archived } });
