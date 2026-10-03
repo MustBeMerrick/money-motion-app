@@ -60,13 +60,26 @@ function BillColorField({ initialColor }: { initialColor?: string | null }) {
   );
 }
 
-function CheckField({ label, name, defaultChecked, onChange }: { label: string; name: string; defaultChecked?: boolean; onChange?: (v: boolean) => void }) {
+function CheckField({
+  label,
+  name,
+  defaultChecked,
+  checked,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  defaultChecked?: boolean;
+  checked?: boolean;
+  onChange?: (v: boolean) => void;
+}) {
   return (
     <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-2">
       <input
         type="checkbox"
         name={name}
-        defaultChecked={defaultChecked}
+        defaultChecked={checked === undefined ? defaultChecked : undefined}
+        checked={checked}
         onChange={(e) => onChange?.(e.target.checked)}
         className="h-4 w-4 accent-[#7ED957]"
       />
@@ -220,11 +233,29 @@ export function BillForm({
   // when the modal is dismissed and reopened
   const amountRef = useRef<HTMLInputElement>(null);
   const reimburseRef = useRef<HTMLInputElement>(null);
+  // Whether the reimbursement is pinned to a straight 50/50 split, so editing
+  // the amount keeps it in sync instead of leaving the old hardcoded value
+  // behind. True for a brand-new shared bill, or an existing one whose saved
+  // reimburseCents already matches half its amount. Typing a manual value
+  // into the reimburse field unchecks it, since that's the user overriding
+  // the split; checking it back on recalculates from the current amount.
+  const [splitHalf, setSplitHalf] = useState(
+    !initial || initial.reimburseCents === splitHalfCents(initial.amountCents),
+  );
 
   function fillHalf() {
     const amount = parseDollarsToCents(amountRef.current?.value ?? "");
     if (amount === null || !reimburseRef.current) return;
     reimburseRef.current.value = (splitHalfCents(amount) / 100).toFixed(2);
+  }
+
+  function onSplitHalfChange(checked: boolean) {
+    setSplitHalf(checked);
+    if (checked) fillHalf();
+  }
+
+  function onAmountChange() {
+    if (splitHalf) fillHalf();
   }
 
   return (
@@ -242,7 +273,7 @@ export function BillForm({
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Amount ($)">
-              <input ref={amountRef} name="amount" required defaultValue={dollars(initial?.amountCents)} className="input" inputMode="decimal" />
+              <input ref={amountRef} name="amount" required defaultValue={dollars(initial?.amountCents)} className="input" inputMode="decimal" onChange={onAmountChange} />
             </Field>
             <Field label="Frequency">
               <select
@@ -291,17 +322,15 @@ export function BillForm({
           )}
           <CheckField label="Shared (someone reimburses part of it)" name="shared" defaultChecked={shared} onChange={setShared} />
           {shared && (
-            /* not a <label>: the button inside would forward its click to the input */
             <div>
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-ink-2">Expected reimbursement ($)</span>
-                <button
-                  type="button"
-                  onClick={fillHalf}
-                  className="cursor-pointer rounded-md border border-line-2 px-2 py-0.5 text-[11px] font-medium text-lime transition-colors hover:border-lime/60 hover:bg-surface-2"
-                >
-                  Split 50/50
-                </button>
+                <CheckField
+                  label="Split 50/50"
+                  name="splitHalf"
+                  checked={splitHalf}
+                  onChange={onSplitHalfChange}
+                />
               </div>
               <input
                 ref={reimburseRef}
@@ -309,6 +338,7 @@ export function BillForm({
                 defaultValue={dollars(initial?.reimburseCents || null)}
                 className="input"
                 inputMode="decimal"
+                onChange={() => setSplitHalf(false)}
               />
               <span className="mt-1 block text-[11px] leading-snug text-ink-3">
                 Leave empty to expect the full amount back.
