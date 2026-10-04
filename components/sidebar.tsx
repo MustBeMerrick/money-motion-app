@@ -25,12 +25,12 @@ const NAV = [
 ];
 
 const BOTTOM_NAV_LEFT = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/bills", label: "Bills", icon: ReceiptText },
-  { href: "/piggy", label: "Piggy", icon: PiggyBank },
 ];
 const BOTTOM_NAV_RIGHT = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/accounts", label: "Accounts", icon: CreditCard },
+  { href: "/piggy", label: "Piggy", icon: PiggyBank },
 ];
 
 function NavLinks({
@@ -124,7 +124,7 @@ function BottomNavItem({
   icon: typeof ReceiptText;
   pathname: string;
 }) {
-  const active = pathname.startsWith(href);
+  const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
   return (
     <Link
       href={href}
@@ -189,7 +189,7 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* mobile: Settings and Dashboard get their own corner buttons instead
+      {/* mobile: Settings and Accounts get their own corner buttons instead
           of hiding behind a hamburger — the logo sits centered between them
           (Sign out moved to the Settings page, the only thing the drawer was
           otherwise for). */}
@@ -199,11 +199,11 @@ export function Sidebar() {
           <LogoMark size={30} />
           <span className="text-base font-bold tracking-tight">MoneyMotion</span>
         </Link>
-        <HeaderIconLink href="/" label="Dashboard" icon={LayoutDashboard} pathname={pathname} />
+        <HeaderIconLink href="/accounts" label="Accounts" icon={CreditCard} pathname={pathname} />
       </header>
 
-      {/* mobile: bottom tab bar — Bills & Piggy on the left, Calendar &
-          Accounts on the right, flanking the Add Transaction FAB, which
+      {/* mobile: bottom tab bar — Dashboard & Bills on the left, Calendar & Piggy
+          on the right, flanking the Add Transaction FAB, which
           pokes up above the bar so it still reads as the primary action */}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex h-24 items-stretch border-t border-line bg-surface/95 pb-[calc(2.25rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
         <div className="flex flex-1 justify-evenly">
