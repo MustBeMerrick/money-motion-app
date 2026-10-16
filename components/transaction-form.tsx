@@ -662,13 +662,22 @@ export function AddTransactionFab({
   const [open, setOpen] = useState(false);
 
   // Fetched on mount (and again on close, to pick up a payee just added)
-  // rather than on click: opening the modal must be a synchronous state
-  // update with no `await` in between, or the click's mobile user-activation
-  // expires before the Payee input's autofocus effect runs, and the browser
-  // silently refuses to raise the keyboard for a focus() outside a gesture.
+  // rather than awaited on click: opening the modal must be a synchronous
+  // state update with no `await` in between, or the click's mobile
+  // user-activation expires before the Payee input's autofocus effect runs,
+  // and the browser silently refuses to raise the keyboard for a focus()
+  // outside a gesture.
   useEffect(() => {
     getTransactionFormOptions().then(setOptions);
   }, []);
+
+  // The FAB lives in the persistent sidebar, so the mount-time fetch can be
+  // arbitrarily stale (e.g. an account created since) -- refresh in the
+  // background after the modal is already open.
+  function openModal() {
+    setOpen(true);
+    getTransactionFormOptions().then(setOptions);
+  }
 
   function close() {
     setOpen(false);
@@ -679,7 +688,7 @@ export function AddTransactionFab({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openModal}
         disabled={!options}
         aria-label="Add transaction"
         className={className}
