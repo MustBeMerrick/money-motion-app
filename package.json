@@ -13,6 +13,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx scripts/seed.ts",
+    "db:backfill-rules": "tsx scripts/backfill-bill-rules.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {

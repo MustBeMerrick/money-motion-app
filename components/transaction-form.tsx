@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus, X } from "lucide-react";
 import type { Account, Payee, TransactionType } from "@prisma/client";
@@ -12,6 +12,7 @@ import {
   categoryColor,
   categoryEmoji,
   categoryLabel,
+  flattenCategoryKeys,
   type CategoryKey,
 } from "@/lib/core/categories";
 import { todayIso } from "@/lib/core/dates";
@@ -152,10 +153,6 @@ function AccountSelect({
   );
 }
 
-function flattenCategoryKeys(tree: typeof CATEGORY_TREE): CategoryKey[] {
-  return tree.flatMap((c) => [c.key, ...(c.children?.map((s) => s.key) ?? [])]);
-}
-
 // Native <select> shows the selected <option>'s own text in its closed
 // state — there's no way to show the emoji only in the open list and not
 // once picked, since both read from the same text. A custom listbox sidesteps
@@ -175,27 +172,38 @@ function CategorySelect({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const keys = flattenCategoryKeys(tree);
 
+  // Mobile slides the sheet back down before unmounting it; desktop has no
+  // slide, so it closes at once.
+  const close = useCallback(() => {
+    if (closing) return;
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      setOpen(false);
+      return;
+    }
+    setClosing(true);
+    setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 200);
+  }, [closing]);
+
   useEffect(() => {
     if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        setOpen(false);
+        close();
       }
     }
-    document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, close]);
 
   return (
     <div ref={ref} className={`relative inline-block max-w-full ${className}`}>
@@ -206,40 +214,66 @@ function CategorySelect({
       >
         {value ? categoryLabel(value) : "No category"}
       </button>
-      {open && (
-        <ul className="absolute z-20 mt-1 max-h-56 w-max max-w-[calc(100vw-2.5rem)] overflow-auto rounded-lg border border-line-2 bg-surface-2 py-1 text-xs shadow-lg shadow-black/40">
-          <li>
-            <button
-              type="button"
-              onClick={() => {
-                onChange("");
-                setOpen(false);
-              }}
-              className={`block w-full cursor-pointer px-3 py-1.5 text-left whitespace-nowrap hover:bg-surface ${
-                value === "" ? "text-lime" : "text-ink"
-              }`}
+      {open &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 lg:items-center lg:p-4"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) close();
+            }}
+          >
+            <div
+              style={{ animation: `${closing ? "sheet-down" : "sheet-up"} ${closing ? 200 : 220}ms ease-out forwards` }}
+              className="w-full max-w-lg rounded-t-2xl border border-line-2 bg-surface pb-4 shadow-lg shadow-black/40 lg:animate-none! lg:rounded-2xl"
             >
-              No category
-            </button>
-          </li>
-          {keys.map((key) => (
-            <li key={key}>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(key);
-                  setOpen(false);
-                }}
-                className={`block w-full cursor-pointer px-3 py-1.5 text-left whitespace-nowrap hover:bg-surface ${
-                  key === value ? "text-lime" : "text-ink"
-                }`}
-              >
-                {categoryEmoji(key)} {categoryLabel(key)}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+              <div className="flex items-center justify-between px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange("");
+                    close();
+                  }}
+                  className="cursor-pointer text-sm text-ink-3 hover:text-ink"
+                >
+                  Clear
+                </button>
+                <span className="text-sm font-semibold text-ink">Select Category</span>
+                <button type="button" onClick={close} className="cursor-pointer text-sm text-lime">
+                  Done
+                </button>
+              </div>
+              {/* 4-column grid, scrolls vertically */}
+              <div className="grid max-h-80 grid-cols-4 overflow-y-auto px-2 pb-2">
+                {keys.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      onChange(key);
+                      close();
+                    }}
+                    className="flex cursor-pointer flex-col items-center gap-1 px-1 py-2 text-center"
+                  >
+                    <span
+                      className={`flex h-11 w-11 items-center justify-center rounded-full text-xl ${
+                        key === value ? "ring-2 ring-lime" : ""
+                      }`}
+                      style={{
+                        background: categoryBackground(categoryColor(key)) ?? "var(--surface-2)",
+                      }}
+                    >
+                      {categoryEmoji(key)}
+                    </span>
+                    <span className={`text-[11px] leading-tight ${key === value ? "text-lime" : "text-ink-2"}`}>
+                      {categoryLabel(key)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -470,6 +504,13 @@ export function TransactionModal({
                 type="button"
                 onClick={() => {
                   setUiType(t.value);
+                  // a new transfer is almost always Checking -> Reserve
+                  if (t.value === "TRANSFER" && !editing) {
+                    const checking = options.accounts.find((a) => a.type === "CHECKING");
+                    const reserve = options.accounts.find((a) => a.name === "Reserve");
+                    if (checking) setAccountId(checking.id);
+                    if (reserve) setToAccountId(reserve.id);
+                  }
                   // Income and Expense/Reimburse draw from different category
                   // lists, so a selection from one wouldn't be valid in the other
                   setCategory("");

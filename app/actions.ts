@@ -3,7 +3,9 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { parseDollarsToCents } from "@/lib/core/money";
-import { daysBetween, todayIso } from "@/lib/core/dates";
+import { daysBetween, monthOf, todayIso } from "@/lib/core/dates";
+import { billDueDatesInMonth } from "@/lib/core/month";
+import { matchingBillIds } from "@/lib/core/bill-match";
 import { bucketValueOn } from "@/lib/core/piggy";
 import { CATEGORY_KEYS } from "@/lib/core/categories";
 import type { CategoryKey } from "@prisma/client";
@@ -140,6 +142,15 @@ const billSchema = z.object({
   dueMonth: z.coerce.number().int().min(1).max(12).optional(),
   dueWeekday: z.coerce.number().int().min(0).max(6).optional(),
   color: z.string().optional(),
+  // JSON array from the form's Auto-checkboxing tab
+  rules: z.string().optional(),
+});
+
+const matchRuleSchema = z.object({
+  payee: z.string().trim().optional(),
+  category: z.enum(CATEGORY_KEYS).nullable().optional(),
+  amountCents: z.number().int().positive().nullable().optional(),
+  matchAll: z.boolean(),
 });
 
 export async function saveBill(formData: FormData) {
@@ -159,11 +170,26 @@ export async function saveBill(formData: FormData) {
     dueWeekday: weekly ? (f.dueWeekday ?? 1) : null,
     color: f.color || null,
   };
-  if (f.id) {
-    await prisma.bill.update({ where: { id: f.id }, data });
-  } else {
-    await prisma.bill.create({ data });
-  }
+  // rows with nothing filled in would never match, so don't keep them
+  const rules = z
+    .array(matchRuleSchema)
+    .parse(JSON.parse(f.rules || "[]"))
+    .filter((r) => r.payee || r.category || r.amountCents != null)
+    .map((r, sortOrder) => ({
+      payee: r.payee || null,
+      category: r.category ?? null,
+      amountCents: r.amountCents ?? null,
+      matchAll: r.matchAll,
+      sortOrder,
+    }));
+  await prisma.$transaction(async (tx) => {
+    const id = f.id ?? (await tx.bill.create({ data })).id;
+    if (f.id) {
+      await tx.bill.update({ where: { id }, data });
+      await tx.billMatchRule.deleteMany({ where: { billId: id } });
+    }
+    if (rules.length > 0) await tx.billMatchRule.createMany({ data: rules.map((r) => ({ ...r, billId: id })) });
+  });
 }
 
 export async function deleteBill(id: string) {
@@ -408,9 +434,42 @@ export async function saveTransaction(formData: FormData) {
     await prisma.transaction.create({ data });
   }
 
+  await autoTickBills({
+    type: f.type,
+    date: f.date,
+    reimbursement,
+    payeeName: f.payeeName,
+    category: f.category,
+    amountCents: f.amount,
+  });
+
   // learn which account this payee is usually charged to
   if (payeeId && f.type !== "TRANSFER") {
     await prisma.payee.update({ where: { id: payeeId }, data: { defaultAccountId: f.accountId } });
+  }
+}
+
+// Ticks Hit (expense) or Paid (reimbursement, shared bills only) on the
+// bill(s) whose Auto-checkboxing rules this transaction matches (see
+// lib/core/bill-match). Only ever sets it -- editing or deleting a transaction
+// never un-ticks, since the box may have been ticked by hand. The occurrence
+// is the bill's due date in the transaction's month, so a charge that posts a
+// few days off its due date still lands on the right row.
+async function autoTickBills(t: Parameters<typeof matchingBillIds>[0] & { date: string }) {
+  const field = t.reimbursement ? "paid" : "hit";
+  const bills = await prisma.bill.findMany({ where: { active: true }, include: { matchRules: true } });
+  const ids = new Set(matchingBillIds(t, bills));
+  const month = monthOf(t.date);
+  for (const bill of bills) {
+    if (!ids.has(bill.id)) continue;
+    if (field === "paid" && !bill.shared) continue;
+    for (const date of billDueDatesInMonth(bill, month)) {
+      await prisma.billOccurrence.upsert({
+        where: { billId_date: { billId: bill.id, date } },
+        create: { billId: bill.id, date, [field]: true },
+        update: { [field]: true },
+      });
+    }
   }
 }
 

@@ -76,6 +76,24 @@ model Bill {
   active         Boolean       @default(true)
   createdAt      DateTime      @default(now())
   occurrences    BillOccurrence[]
+  matchRules     BillMatchRule[]
+}
+
+// "When a transaction looks like this, tick the bill's Hit (expense) or Paid
+// (reimbursement) box." Fields left null aren't checked. matchAll = every
+// filled field must match (AND); otherwise any one of them is enough (OR). A
+// bill with several rules ticks when any rule matches.
+model BillMatchRule {
+  id          String       @id @default(cuid())
+  bill        Bill         @relation(fields: [billId], references: [id], onDelete: Cascade)
+  billId      String
+  payee       String?
+  category    CategoryKey?
+  amountCents Int?
+  matchAll    Boolean      @default(true)
+  sortOrder   Int          @default(0)
+
+  @@index([billId])
 }
 
 // One row per actual charge. A monthly bill has one per month, a weekly bill

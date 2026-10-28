@@ -1,5 +1,5 @@
 import { cache } from "react";
-import type { Account, Bill, ExtraIncome, MonthPlan, PiggyBucket } from "@prisma/client";
+import type { Account, Bill, BillMatchRule, ExtraIncome, MonthPlan, PiggyBucket } from "@prisma/client";
 import { prisma } from "./prisma";
 import { monthOf, nextPayDate, todayIso, type IsoDate, type IsoMonth } from "./core/dates";
 import {
@@ -11,6 +11,7 @@ import {
 } from "./core/month";
 
 export type BillWithStatus = Bill & {
+  matchRules: BillMatchRule[];
   // one entry per charge this month, in date order
   occurrences: OccurrenceStatus[];
   // rolled up across occurrences: hit only when every charge has landed
@@ -84,7 +85,10 @@ export async function getBillsWithStatus(month: IsoMonth): Promise<BillWithStatu
     orderBy: [{ dueMonth: "asc" }, { dueDay: "asc" }, { name: "asc" }],
     // rows only exist once ticked, so start from the dates the bill is due
     // and fold any stored status onto them
-    include: { occurrences: { where: { date: { startsWith: month } } } },
+    include: {
+      occurrences: { where: { date: { startsWith: month } } },
+      matchRules: { orderBy: { sortOrder: "asc" } },
+    },
   });
 
   return bills.map(({ occurrences: stored, ...bill }) => {

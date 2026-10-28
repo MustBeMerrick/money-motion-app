@@ -1,6 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type CategoryKey } from "@prisma/client";
 import { dayOfMonth, monthOf, todayIso } from "../lib/core/dates";
 import { billDueDatesInMonth } from "../lib/core/month";
+import { DEFAULT_RULES_BY_BILL } from "../lib/core/bill-match";
 
 const prisma = new PrismaClient();
 
@@ -66,6 +67,17 @@ async function main() {
         dueMonth: b.dueMonth ?? null,
         color: b.color ?? null,
       },
+    });
+    const rules = DEFAULT_RULES_BY_BILL[b.name.toLowerCase()] ?? [];
+    await prisma.billMatchRule.createMany({
+      data: rules.map((r, sortOrder) => ({
+        billId: bill.id,
+        payee: r.payee ?? null,
+        category: (r.category as CategoryKey | undefined) ?? null,
+        amountCents: r.amountCents ?? null,
+        matchAll: r.matchAll,
+        sortOrder,
+      })),
     });
     // charges already past their due date this month have hit the card
     for (const date of billDueDatesInMonth(bill, month)) {

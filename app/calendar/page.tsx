@@ -64,12 +64,13 @@ export default async function CalendarPage({
       byDay.set(day, [...(byDay.get(day) ?? []), { bill, date: o.date, hit: o.hit }]);
     }
   }
-  // Hello Fresh recurs so often it crowds out anything more worth noticing at
-  // a glance -- sort it to the end of each day's list (a stable sort, so
-  // everything else keeps its relative order) rather than letting it win the
-  // "first bill" slot mobile's compact cell shows.
+  // Groceries and Hello Fresh recur so often they crowd out anything more
+  // worth noticing at a glance -- sort them to the end of each day's list (a
+  // stable sort, so everything else keeps its relative order) rather than
+  // letting them win the "first bill" slot mobile's compact cell shows.
+  const isLowPriorityName = (name: string | null | undefined) => name === "Hello Fresh" || name === "Groceries";
   for (const charges of byDay.values()) {
-    charges.sort((a, b) => (a.bill.name === "Hello Fresh" ? 1 : 0) - (b.bill.name === "Hello Fresh" ? 1 : 0));
+    charges.sort((a, b) => Number(isLowPriorityName(a.bill.name)) - Number(isLowPriorityName(b.bill.name)));
   }
   // count charges, not unique bills — a weekly bill due 5 times this month
   // is 5 chips on the calendar, not 1
@@ -115,7 +116,10 @@ export default async function CalendarPage({
         result.splice(counterpartIdx + 1, 0, reim);
       }
     }
-    return result;
+    // Groceries / Hello Fresh sink to the bottom of the day (stable, so a
+    // reimbursement still follows the expense it offsets within each group)
+    const isLow = (t: DayTransaction) => t.category === "GROCERIES" || isLowPriorityName(t.payee?.name);
+    return [...result.filter((t) => !isLow(t)), ...result.filter(isLow)];
   }
 
   const dayTotals: Record<number, DayTotals> = {};

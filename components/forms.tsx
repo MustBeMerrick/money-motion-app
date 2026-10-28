@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Pencil, Plus } from "lucide-react";
-import type { Account, Bill, BillFrequency, ExtraIncome, PiggyBucket } from "@prisma/client";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import type { Account, Bill, BillFrequency, BillMatchRule, ExtraIncome, PiggyBucket } from "@prisma/client";
 import { WEEKDAY_NAMES } from "@/lib/core/dates";
+import { CATEGORY_TREE, categoryEmoji, categoryLabel, flattenCategoryKeys } from "@/lib/core/categories";
 import { saveAccount, saveBill, saveBucket, saveExtraIncome } from "@/app/actions";
 import { parseDollarsToCents, splitHalfCents } from "@/lib/core/money";
 import { useScheduleRefresh } from "@/lib/refresh-context";
@@ -216,12 +217,155 @@ export function AccountForm({ initial, trigger }: { initial?: Account; trigger?:
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+// --- Bill auto-checkboxing ---
+// Rules that tick this bill's Hit (expense) / Paid (reimbursement) box when a
+// matching transaction is saved. Serialized into one hidden JSON field the
+// server action reads, so rows can be added and removed freely.
+
+type RuleRow = { key: number; payee: string; category: string; amount: string; matchAll: boolean };
+
+const EXPENSE_CATEGORY_KEYS = flattenCategoryKeys(CATEGORY_TREE);
+
+function BillRulesEditor({ initial }: { initial: BillMatchRule[] }) {
+  const nextKey = useRef(initial.length);
+  const [rows, setRows] = useState<RuleRow[]>(
+    initial.map((r, key) => ({
+      key,
+      payee: r.payee ?? "",
+      category: r.category ?? "",
+      amount: dollars(r.amountCents),
+      matchAll: r.matchAll,
+    })),
+  );
+
+  function update(key: number, patch: Partial<RuleRow>) {
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  }
+
+  const serialized = JSON.stringify(
+    rows.map((r) => ({
+      payee: r.payee,
+      category: r.category || null,
+      amountCents: parseDollarsToCents(r.amount),
+      matchAll: r.matchAll,
+    })),
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <input type="hidden" name="rules" value={serialized} />
+      <p className="text-[11px] leading-snug text-ink-3">
+        When you save a transaction that matches a rule, this bill&apos;s Hit box is ticked (or Paid, for a
+        reimbursement of a shared bill). Fill in any of the fields; leave the rest blank. If a bill has several
+        rules, any one of them is enough.
+      </p>
+      {rows.length === 0 && <p className="text-xs text-ink-3">No rules — this bill is only ticked by hand.</p>}
+      {rows.map((r) => (
+        <div key={r.key} className="flex flex-col gap-2.5 rounded-lg border border-line-2 bg-bg p-3">
+          <div className="flex items-start gap-2">
+            <div className="grid min-w-0 flex-1 grid-cols-2 gap-2.5">
+              <Field label="Payee">
+                <input
+                  value={r.payee}
+                  onChange={(e) => update(r.key, { payee: e.target.value })}
+                  placeholder="Any"
+                  className="input"
+                />
+              </Field>
+              <Field label="Category">
+                <select
+                  value={r.category}
+                  onChange={(e) => update(r.key, { category: e.target.value })}
+                  className="input"
+                >
+                  <option value="">Any</option>
+                  {EXPENSE_CATEGORY_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      {categoryEmoji(k)} {categoryLabel(k)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Amount ($)" hint="Not used for reimbursements.">
+                <input
+                  value={r.amount}
+                  onChange={(e) => update(r.key, { amount: e.target.value })}
+                  placeholder="Any"
+                  inputMode="decimal"
+                  className="input"
+                />
+              </Field>
+              <Field label="Fields must match" hint="Only matters when 2+ are filled.">
+                <select
+                  value={r.matchAll ? "all" : "any"}
+                  onChange={(e) => update(r.key, { matchAll: e.target.value === "all" })}
+                  className="input"
+                >
+                  <option value="all">All (AND)</option>
+                  <option value="any">Any one (OR)</option>
+                </select>
+              </Field>
+            </div>
+            <button
+              type="button"
+              aria-label="Remove rule"
+              onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
+              className="mt-5 cursor-pointer rounded-md p-1 text-ink-3 hover:bg-surface-2 hover:text-neg"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn self-start"
+        onClick={() =>
+          setRows((rs) => [...rs, { key: nextKey.current++, payee: "", category: "", amount: "", matchAll: true }])
+        }
+      >
+        <Plus size={14} /> Add rule
+      </button>
+    </div>
+  );
+}
+
+// Both panels stay mounted (the inactive one is just hidden) so the one form
+// submits fields from both tabs.
+function BillTabs({ details, rules }: { details: React.ReactNode; rules: React.ReactNode }) {
+  const [tab, setTab] = useState<"details" | "auto">("details");
+  const tabs = [
+    { id: "details", label: "Details" },
+    { id: "auto", label: "Auto-checkboxing" },
+  ] as const;
+  return (
+    <>
+      <div className="flex gap-1 border-b border-line-2">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`-mb-px cursor-pointer border-b-2 px-3 py-1.5 text-xs font-semibold ${
+              tab === t.id ? "border-lime text-ink" : "border-transparent text-ink-3 hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className={tab === "details" ? "flex flex-col gap-3.5" : "hidden"}>{details}</div>
+      <div className={tab === "auto" ? "" : "hidden"}>{rules}</div>
+    </>
+  );
+}
+
 export function BillForm({
   initial,
   trigger,
   defaultFrequency = "MONTHLY",
 }: {
-  initial?: Bill;
+  initial?: Bill & { matchRules?: BillMatchRule[] };
   trigger?: React.ReactNode;
   defaultFrequency?: BillFrequency;
 }) {
@@ -266,6 +410,9 @@ export function BillForm({
       action={saveBill}
     >
       {() => (
+        <BillTabs
+          rules={<BillRulesEditor initial={initial?.matchRules ?? []} />}
+          details={
         <>
           {initial && <input type="hidden" name="id" value={initial.id} />}
           <Field label="Name">
@@ -346,6 +493,8 @@ export function BillForm({
             </div>
           )}
         </>
+          }
+        />
       )}
     </FormShell>
   );

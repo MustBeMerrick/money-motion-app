@@ -138,6 +138,10 @@ export const CATEGORY_TREE: CategoryNode[] = [
   { key: "WEDDING", label: "Wedding", emoji: "💍" },
 ];
 
+export function flattenCategoryKeys(tree: typeof CATEGORY_TREE): CategoryKey[] {
+  return tree.flatMap((c) => [c.key, ...(c.children?.map((s) => s.key) ?? [])]);
+}
+
 // Separate from CATEGORY_TREE (expense/reimbursement categories) since the
 // two sets are never offered together -- the add-transaction form shows one
 // or the other depending on Expense/Reimburse vs Income.
