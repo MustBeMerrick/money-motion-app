@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Plus, X } from "lucide-react";
 import type { Account, Payee, TransactionType } from "@prisma/client";
 import { getTransactionFormOptions, saveTransaction } from "@/app/actions";
 import { evaluateArithmetic } from "@/lib/core/arithmetic";
@@ -75,8 +75,8 @@ function accountSwatch(a: Account): string {
 }
 
 // Native <select> can't style individual <option>s (no per-row swatch, cross
-// browser), so the account pickers use this custom listbox instead — closes
-// on outside click or Escape, same as any dropdown.
+// browser), so the account pickers use a custom sheet instead -- the same
+// bottom sheet as CategorySelect, with one big tappable row per account.
 function AccountSelect({
   accounts,
   value,
@@ -89,30 +89,44 @@ function AccountSelect({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [closing, setClosing] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
   const selected = accounts.find((a) => a.id === value);
+
+  // Mobile slides the sheet back down before unmounting it; desktop has no
+  // slide, so it closes at once.
+  const close = useCallback(() => {
+    if (closing) return;
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      setOpen(false);
+      return;
+    }
+    setClosing(true);
+    setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 200);
+  }, [closing]);
 
   useEffect(() => {
     if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.stopPropagation();
-        setOpen(false);
+        close();
       }
     }
-    document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, close]);
+
+  // Reopening shows the current selection even in a long list.
+  useLayoutEffect(() => {
+    if (open) listRef.current?.querySelector<HTMLElement>("[data-selected]")?.scrollIntoView({ block: "nearest" });
   }, [open]);
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div className={`relative ${className}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -125,33 +139,59 @@ function AccountSelect({
         <span className="min-w-0 flex-1 truncate">{selected?.name ?? "Select account"}</span>
         <ChevronDown size={14} className="shrink-0 text-ink-3" />
       </button>
-      {open && (
-        <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-line-2 bg-surface-2 py-1 shadow-lg shadow-black/40">
-          {accounts.map((a) => (
-            <li key={a.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(a.id);
-                  setOpen(false);
-                }}
-                className={`flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-surface ${
-                  a.id === value ? "text-lime" : "text-ink"
-                }`}
-              >
-                <span
-                  className="h-4 w-4 shrink-0 rounded-full border border-line-2"
-                  style={{ background: accountSwatch(a) }}
-                />
-                <span className="min-w-0 flex-1 truncate">{a.name}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {open &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 lg:items-center lg:p-4"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) close();
+            }}
+          >
+            <div
+              style={{ animation: `${closing ? "sheet-down" : "sheet-up"} ${closing ? 200 : 220}ms ease-out forwards` }}
+              className="w-full max-w-lg rounded-t-2xl border border-line-2 bg-surface pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-lg shadow-black/40 lg:animate-none! lg:rounded-2xl lg:pb-4"
+            >
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="w-10" />
+                <span className="text-sm font-semibold text-ink">Select Account</span>
+                <button type="button" onClick={close} className="w-10 cursor-pointer text-right text-sm text-lime">
+                  Done
+                </button>
+              </div>
+              <div ref={listRef} className="max-h-[60dvh] overflow-y-auto overscroll-contain px-2">
+                {accounts.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    data-selected={a.id === value ? "" : undefined}
+                    onClick={() => {
+                      onChange(a.id);
+                      close();
+                    }}
+                    className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3.5 text-left text-base ${
+                      a.id === value ? "bg-surface-2 text-lime" : "text-ink"
+                    }`}
+                  >
+                    <span
+                      className="h-7 w-7 shrink-0 rounded-full border border-line-2"
+                      style={{ background: accountSwatch(a) }}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                    {a.id === value && <Check size={18} className="shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
+
+// Category sheet pages: 4 columns x this many rows per swipe-snapped page.
+const CATEGORY_PAGE_ROWS = 3;
+const CATEGORY_PAGE_SIZE = CATEGORY_PAGE_ROWS * 4;
 
 // Native <select> shows the selected <option>'s own text in its closed
 // state — there's no way to show the emoji only in the open list and not
@@ -174,7 +214,23 @@ function CategorySelect({
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const keys = flattenCategoryKeys(tree);
+
+  // Reopening starts on the page holding the current selection, not page one.
+  // Mobile jumps to that snap page; desktop (one plain grid) just brings the
+  // selected tile into view.
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!open || !grid || !value) return;
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      grid.querySelector<HTMLElement>("[data-selected]")?.scrollIntoView({ block: "nearest" });
+    } else {
+      grid.scrollTop = Math.floor(keys.indexOf(value) / CATEGORY_PAGE_SIZE) * grid.clientHeight;
+    }
+    // Only on open; later value changes close the sheet anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Mobile slides the sheet back down before unmounting it; desktop has no
   // slide, so it closes at once.
@@ -242,32 +298,39 @@ function CategorySelect({
                   Done
                 </button>
               </div>
-              {/* 4-column grid, scrolls vertically */}
-              <div className="grid max-h-80 grid-cols-4 overflow-y-auto px-2 pb-2">
-                {keys.map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => {
-                      onChange(key);
-                      close();
-                    }}
-                    className="flex cursor-pointer flex-col items-center gap-1 px-1 py-2 text-center"
-                  >
-                    <span
-                      className={`flex h-11 w-11 items-center justify-center rounded-full text-xl ${
-                        key === value ? "ring-2 ring-lime" : ""
-                      }`}
-                      style={{
-                        background: categoryBackground(categoryColor(key)) ?? "var(--surface-2)",
-                      }}
-                    >
-                      {categoryEmoji(key)}
-                    </span>
-                    <span className={`text-[11px] leading-tight ${key === value ? "text-lime" : "text-ink-2"}`}>
-                      {categoryLabel(key)}
-                    </span>
-                  </button>
+              {/* Mobile: swipes snap to whole pages of CATEGORY_PAGE_ROWS rows
+                  instead of free-scrolling. Desktop (lg) unwraps the pages
+                  (`contents`) back into one plain scrolling grid. */}
+              <div ref={gridRef} className="h-72 snap-y snap-mandatory overflow-y-auto overscroll-contain px-2 lg:grid lg:h-auto lg:max-h-80 lg:snap-none lg:grid-cols-4 lg:pb-2">
+                {Array.from({ length: Math.ceil(keys.length / CATEGORY_PAGE_SIZE) }, (_, page) => (
+                  <div key={page} className="grid h-72 snap-start snap-always grid-cols-4 grid-rows-3 lg:contents">
+                    {keys.slice(page * CATEGORY_PAGE_SIZE, (page + 1) * CATEGORY_PAGE_SIZE).map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        data-selected={key === value ? "" : undefined}
+                        onClick={() => {
+                          onChange(key);
+                          close();
+                        }}
+                        className="flex cursor-pointer flex-col items-center gap-1 px-1 py-2 text-center"
+                      >
+                        <span
+                          className={`flex h-11 w-11 items-center justify-center rounded-full text-xl ${
+                            key === value ? "ring-2 ring-lime" : ""
+                          }`}
+                          style={{
+                            background: categoryBackground(categoryColor(key)) ?? "var(--surface-2)",
+                          }}
+                        >
+                          {categoryEmoji(key)}
+                        </span>
+                        <span className={`text-[11px] leading-tight ${key === value ? "text-lime" : "text-ink-2"}`}>
+                          {categoryLabel(key)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
