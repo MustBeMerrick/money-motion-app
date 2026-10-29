@@ -329,6 +329,12 @@ export async function deleteBucket(id: string) {
   await prisma.piggyBucket.delete({ where: { id } });
 }
 
+// Past transactions keep existing but lose their payee name (onDelete: SetNull).
+export async function deletePayee(id: string) {
+  await actionLatency();
+  await prisma.payee.delete({ where: { id } });
+}
+
 // --- month plan ---
 
 // Salary and savings are edited in place on the dashboard, one field at a

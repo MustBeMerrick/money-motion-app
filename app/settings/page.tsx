@@ -21,6 +21,9 @@ export default function SettingsPage() {
             <a href="/api/export/transactions" className="btn">
               Export CSV
             </a>
+            <Link href="/settings/payees" className="btn">
+              Payees
+            </Link>
           </div>
         </div>
 
