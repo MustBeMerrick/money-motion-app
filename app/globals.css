@@ -106,6 +106,16 @@ body {
   .input {
     @apply w-full rounded-lg border border-line-2 bg-bg px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-lime;
   }
+  /* iOS Safari renders date inputs with a native intrinsic width that ignores
+     w-full/min-w-0 and overflows its grid cell; dropping the native
+     appearance lets the width apply (min-h keeps the empty-value height). */
+  .input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    max-width: 100%;
+    min-height: 2.375rem;
+    text-align: left;
+  }
   .btn {
     @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-line-2 bg-surface-2 px-3 py-1.5 text-sm font-medium text-ink transition-colors hover:border-lime/50;
   }
