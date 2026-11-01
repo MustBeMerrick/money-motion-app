@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Plus, X } from "lucide-react";
 import type { Account, Payee, TransactionType } from "@prisma/client";
@@ -204,11 +204,17 @@ function CategorySelect({
   tree,
   value,
   onChange,
+  onPicked,
+  openRef,
   className = "",
 }: {
   tree: typeof CATEGORY_TREE;
   value: CategoryKey | "";
   onChange: (key: CategoryKey | "") => void;
+  // Fired after a tile is tapped (not for "No category").
+  onPicked?: () => void;
+  // Lets the parent open the sheet (payee -> category hand-off).
+  openRef?: React.Ref<() => void>;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -216,6 +222,8 @@ function CategorySelect({
   const ref = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const keys = flattenCategoryKeys(tree);
+
+  useImperativeHandle(openRef, () => () => setOpen(true), []);
 
   // Reopening starts on the page holding the current selection, not page one.
   // Mobile jumps to that snap page; desktop (one plain grid) just brings the
@@ -312,6 +320,7 @@ function CategorySelect({
                         onClick={() => {
                           onChange(key);
                           close();
+                          onPicked?.();
                         }}
                         className="flex cursor-pointer flex-col items-center gap-1 px-1 py-2 text-center"
                       >
@@ -463,6 +472,18 @@ export function TransactionModal({
   // category and account — the fix for the spreadsheet habit of always
   // defaulting to the same card. Typing the same text out by hand must NOT
   // trigger this, or the fields silently repopulate mid-edit.
+  // Mobile entry flow: once payee or category is settled the amount is
+  // next. Focus runs synchronously inside the tap handler so iOS still
+  // treats it as a user gesture and raises the keyboard. Desktop skips it --
+  // there, jumping focus after a mouse click is more surprising than handy.
+  const openCategoryRef = useRef<() => void>(null);
+  const isMobile = () => !window.matchMedia("(min-width: 1024px)").matches;
+  function focusAmountOnMobile() {
+    if (isMobile()) {
+      amountInputRef.current?.focus({ preventScroll: true });
+    }
+  }
+
   function selectPayee(name: string) {
     setPayeeName(name);
     const match = options.payees.find((p) => p.name.toLowerCase() === name.trim().toLowerCase());
@@ -620,14 +641,27 @@ export function TransactionModal({
                     // Otherwise Enter's default behavior in a single-input
                     // form is to submit -- before an amount's even entered.
                     e.preventDefault();
-                    amountInputRef.current?.focus({ preventScroll: true });
+                    if (isMobile()) {
+                      // Payee -> category -> amount on mobile.
+                      payeeInputRef.current?.blur();
+                      openCategoryRef.current?.();
+                    } else {
+                      amountInputRef.current?.focus({ preventScroll: true });
+                    }
                   }}
                   placeholder="Payee"
+                  enterKeyHint="next"
                   autoCapitalize="words"
                   className="input w-full"
                   required
                 />
-                <CategorySelect tree={categoryTree} value={category} onChange={setCategory} />
+                <CategorySelect
+                  tree={categoryTree}
+                  value={category}
+                  onChange={setCategory}
+                  onPicked={focusAmountOnMobile}
+                  openRef={openCategoryRef}
+                />
               </div>
               <input
                 ref={amountInputRef}
