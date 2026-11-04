@@ -135,12 +135,11 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
 
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-2 text-[11px] text-ink-3">
                 <span>
-                  {shortDateLabel(b.startedOn ?? b.startDate)}
-                  {completes && daysLeft !== 0 ? ` → ${shortDateLabel(completes, today)}` : ""}
+                  {completes && daysLeft !== 0 && `Ends ${shortDateLabel(completes, today)}`}
                   {remaining !== null && (
                     <>
-                      {" · "}
-                      <Money cents={remaining} tone="plain" className="text-[11px]" /> to go
+                      {completes && daysLeft !== 0 && " · "}
+                      <Money cents={Math.abs(remaining)} tone="plain" className="text-[11px]" /> to go
                     </>
                   )}
                 </span>
@@ -174,7 +173,6 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
             <th className="text-right pr-[39px]">Value</th>
             <th className="text-right">Remain</th>
             <th className="text-right pr-[39px]">Rate/Day</th>
-            <th className="pl-4">Started</th>
             <th className="text-right">Days Left</th>
             <th className="text-right">Completes</th>
             <th className="w-36 pl-5">Progress</th>
@@ -202,7 +200,6 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
                 <td className="text-right">
                   <BucketRateStepper bucketId={b.id} cents={b.ratePerDayCents} />
                 </td>
-                <td className="pl-4 text-xs text-ink-3">{shortDateLabel(b.startedOn ?? b.startDate)}</td>
                 <td className="text-right text-ink-2">
                   {daysLeft === 0 ? <Pill tone="pos">Done</Pill> : (daysLeft ?? "∞")}
                 </td>
@@ -232,7 +229,7 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={10} className="text-center text-xs text-ink-3">
+              <td colSpan={8} className="text-center text-xs text-ink-3">
                 No buckets yet — add one to start dripping
               </td>
             </tr>
@@ -251,7 +248,7 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
               <td className="text-right pr-[39px]">
                 <Money cents={totals.rate} signed className="text-xs" />
               </td>
-              <td colSpan={5} />
+              <td colSpan={4} />
             </tr>
           </tfoot>
         )}

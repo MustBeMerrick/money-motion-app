@@ -24,17 +24,17 @@ export function BucketRateStepper({ bucketId, cents }: { bucketId: string; cents
           type="button"
           aria-label="Increase by $1"
           onClick={() => adjust(STEP_CENTS)}
-          className="btn cursor-pointer px-1 py-0.5"
+          className="btn cursor-pointer px-1.5 py-1 lg:px-1 lg:py-0.5"
         >
-          <Plus size={11} />
+          <Plus size={11} className="h-3.5 w-3.5 lg:h-[11px] lg:w-[11px]" />
         </button>
         <button
           type="button"
           aria-label="Decrease by $1"
           onClick={() => adjust(-STEP_CENTS)}
-          className="btn cursor-pointer px-1 py-0.5"
+          className="btn cursor-pointer px-1.5 py-1 lg:px-1 lg:py-0.5"
         >
-          <Minus size={11} />
+          <Minus size={11} className="h-3.5 w-3.5 lg:h-[11px] lg:w-[11px]" />
         </button>
       </span>
     </span>
