@@ -5,12 +5,19 @@ import { addDays, daysBetween, lastDayOfMonth, type IsoDate, type IsoMonth } fro
 //              forward: hold value released down to target at ratePerDay)
 //   negative = money siphoned aside from the budget (a savings/allowance
 //              fund growing more negative each day)
+export type BucketKind = "SPREAD" | "SAVE";
+
 export interface BucketLike {
+  // SPREAD: a purchase released back into the budget, positive value -> 0.
+  // SAVE: money set aside toward a goal, negative value -> -goal (or forever).
+  kind: string;
+  // anchor of value = principal + rate * days; not the real start date
   startDate: IsoDate;
   principalCents: number;
   ratePerDayCents: number;
   targetCents: number | null;
-  originalCents?: number | null;
+  // SPREAD only: full purchase price, the progress denominator
+  totalCents?: number | null;
 }
 
 function clampToTarget(value: number, bucket: BucketLike): number {
@@ -51,14 +58,18 @@ export function bucketProjectedEom(bucket: BucketLike, month: IsoMonth): number 
   return bucketValueOn(bucket, lastDayOfMonth(month));
 }
 
-// Fraction amortized so far, measured against the original full amount when
-// known (the principal may have been manually adjusted along the way).
+// What progress is measured from. A fund fills from zero toward its goal; a
+// spread starts at the full purchase price (falling back to the anchor value
+// for buckets with no recorded price).
+export function bucketProgressBase(bucket: BucketLike): number | null {
+  if (bucket.targetCents === null) return null;
+  if (bucket.kind === "SAVE") return 0;
+  return bucket.totalCents ?? bucket.principalCents;
+}
+
 export function bucketProgress(bucket: BucketLike, date: IsoDate): number | null {
   if (bucket.targetCents === null) return null;
-  // a fund (negative target) with no original fills from zero; anchoring on
-  // principal would make the first deposit read as 0% forever
-  const fundFromZero = bucket.targetCents < 0 && bucket.principalCents <= 0;
-  const base = bucket.originalCents ?? (fundFromZero ? 0 : bucket.principalCents);
+  const base = bucketProgressBase(bucket) as number;
   const total = base - bucket.targetCents;
   if (total === 0) return 1;
   const remaining = bucketValueOn(bucket, date) - bucket.targetCents;

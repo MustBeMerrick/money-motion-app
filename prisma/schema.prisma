@@ -127,18 +127,25 @@ model ExtraIncome {
 model PiggyBucket {
   id             String    @id @default(cuid())
   name           String
-  // "YYYY-MM-DD"; day the current principal started amortizing
+  // SPREAD = a purchase already made, released back into the budget down to 0
+  // SAVE   = money set aside daily toward a goal (or forever, if no goal)
+  kind           String    @default("SPREAD")
+  // "YYYY-MM-DD": the real date the bucket was started (display only)
+  startedOn      String?
+  // "YYYY-MM-DD": the y-offset anchor for value = principal + rate * days.
+  // Re-set to today whenever the bucket is edited, so never show it as "started".
   startDate      String
-  // signed effective start value (the sheet's "Offset"):
-  //   positive = money granted back to the budget, released down to target
-  //   negative = money siphoned aside from the budget
+  // signed value on startDate:
+  //   SPREAD: +amount still held (positive)
+  //   SAVE:   -amount saved so far (negative)
   principalCents Int
-  // signed daily change applied to the value
+  // signed daily change applied to the value (always <= 0)
   ratePerDayCents Int
-  // value at which the bucket completes; null = perpetual
+  // value at which the bucket completes; SPREAD: 0, SAVE: -goal, null = no goal
   targetCents    Int?
-  // the original full amount (the sheet's "Start"), for progress display
-  originalCents  Int?
+  // SPREAD only: the full purchase price, the progress-bar denominator
+  // (column keeps its old name, it used to be the sheet's "Start")
+  totalCents     Int?      @map("originalCents")
   archived       Boolean   @default(false)
   createdAt      DateTime  @default(now())
 }

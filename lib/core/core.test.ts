@@ -69,42 +69,48 @@ describe("dates", () => {
 });
 
 // Fixtures lifted straight from Marc's Numbers sheet on 2026-08-16.
-// principal = the sheet's "Offset", original = the sheet's "Start".
+// principal = the sheet's "Offset", total = the sheet's "Start".
 const ring: BucketLike = {
+  kind: "SPREAD",
   startDate: "2026-06-23",
   principalCents: 189_000,
   ratePerDayCents: -1_400,
   targetCents: 0,
-  originalCents: 319_000,
+  totalCents: 319_000,
 };
 const cruise: BucketLike = {
+  kind: "SPREAD",
   startDate: "2026-08-01",
   principalCents: 50_000,
   ratePerDayCents: -500,
   targetCents: 0,
-  originalCents: 94_500,
+  totalCents: 94_500,
 };
 const tabby: BucketLike = {
+  kind: "SPREAD",
   startDate: "2026-07-23",
   principalCents: 28_500,
   ratePerDayCents: -500,
   targetCents: 0,
-  originalCents: 28_500,
+  totalCents: 28_500,
 };
 const lightningLane: BucketLike = {
+  kind: "SPREAD",
   startDate: "2026-07-20",
   principalCents: 36_500,
   ratePerDayCents: -700,
   targetCents: 0,
-  originalCents: 42_494,
+  totalCents: 42_494,
 };
 const clothes: BucketLike = {
+  kind: "SAVE",
   startDate: "2026-03-21",
   principalCents: -14_000,
   ratePerDayCents: -100,
   targetCents: null,
 };
 const appleDeveloper: BucketLike = {
+  kind: "SAVE",
   startDate: "2026-02-22",
   principalCents: -9_900,
   ratePerDayCents: 0,
@@ -207,6 +213,24 @@ describe("piggy buckets (sheet fixtures)", () => {
     expect(bucketProgress(ring, TODAY)).toBeCloseTo(1 - 113_400 / 319_000, 5);
   });
 
+  it("a fund's progress is saved / goal, and re-anchoring never moves progress", () => {
+    const sunglasses: BucketLike = {
+      kind: "SAVE",
+      startDate: "2026-08-01",
+      principalCents: -10_000,
+      ratePerDayCents: -1_000,
+      targetCents: -50_000,
+    };
+    // 15 days in: saved 25_000 of 50_000
+    expect(bucketProgress(sunglasses, TODAY)).toBeCloseTo(0.5, 5);
+    // same line, re-anchored to today with a different rate: same value, same bar
+    const reanchored = { ...sunglasses, startDate: TODAY, principalCents: -25_000, ratePerDayCents: -500 };
+    expect(bucketValueOn(reanchored, TODAY)).toBe(bucketValueOn(sunglasses, TODAY));
+    expect(bucketProgress(reanchored, TODAY)).toBeCloseTo(0.5, 5);
+    expect(bucketProgress({ ...ring, startDate: TODAY, principalCents: bucketValueOn(ring, TODAY), ratePerDayCents: -100 }, TODAY))
+      .toBeCloseTo(bucketProgress(ring, TODAY)!, 5);
+  });
+
   it("value never accrues before the start date", () => {
     expect(bucketValueOn(cruise, "2026-07-15")).toBe(50_000);
   });
@@ -294,6 +318,7 @@ describe("month snapshot", () => {
     // today (day 1): 100 - 80 = 20; naively tomorrow would be -60, but it
     // clamps at the target of 0 instead
     const almostDone: BucketLike = {
+      kind: "SPREAD",
       startDate: "2026-08-15",
       principalCents: 100,
       ratePerDayCents: -80,

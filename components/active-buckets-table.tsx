@@ -135,7 +135,7 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
 
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-line pt-2 text-[11px] text-ink-3">
                 <span>
-                  {shortDateLabel(b.startDate)}
+                  {shortDateLabel(b.startedOn ?? b.startDate)}
                   {completes && daysLeft !== 0 ? ` → ${shortDateLabel(completes, today)}` : ""}
                   {remaining !== null && (
                     <>
@@ -171,9 +171,9 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
         <thead>
           <tr>
             <th>Bucket</th>
-            <th className="text-right">Current</th>
+            <th className="text-right pr-[39px]">Value</th>
             <th className="text-right">Remain</th>
-            <th className="text-right">Rate/Day</th>
+            <th className="text-right pr-[39px]">Rate/Day</th>
             <th className="pl-4">Started</th>
             <th className="text-right">Days Left</th>
             <th className="text-right">Completes</th>
@@ -202,7 +202,7 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
                 <td className="text-right">
                   <BucketRateStepper bucketId={b.id} cents={b.ratePerDayCents} />
                 </td>
-                <td className="pl-4 text-xs text-ink-3">{shortDateLabel(b.startDate)}</td>
+                <td className="pl-4 text-xs text-ink-3">{shortDateLabel(b.startedOn ?? b.startDate)}</td>
                 <td className="text-right text-ink-2">
                   {daysLeft === 0 ? <Pill tone="pos">Done</Pill> : (daysLeft ?? "∞")}
                 </td>
@@ -242,13 +242,13 @@ export function ActiveBucketsTable({ buckets, today }: { buckets: PiggyBucket[];
           <tfoot>
             <tr className="border-t border-line font-semibold">
               <td>Total</td>
-              <td className="text-right">
+              <td className="text-right pr-[39px]">
                 <Money cents={totals.current} className="text-sm" />
               </td>
               <td className="text-right">
                 <Money cents={totals.remaining} tone="plain" className="text-xs" />
               </td>
-              <td className="text-right">
+              <td className="text-right pr-[39px]">
                 <Money cents={totals.rate} signed className="text-xs" />
               </td>
               <td colSpan={5} />

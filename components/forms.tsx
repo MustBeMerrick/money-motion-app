@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import type { Account, Bill, BillFrequency, BillMatchRule, ExtraIncome, PiggyBucket } from "@prisma/client";
-import { WEEKDAY_NAMES } from "@/lib/core/dates";
+import { WEEKDAY_NAMES, todayIso } from "@/lib/core/dates";
+import { bucketValueOn } from "@/lib/core/piggy";
 import { CATEGORY_TREE, categoryEmoji, categoryLabel, flattenCategoryKeys } from "@/lib/core/categories";
 import { saveAccount, saveBill, saveBucket, saveExtraIncome } from "@/app/actions";
 import { parseDollarsToCents, splitHalfCents } from "@/lib/core/money";
@@ -527,8 +528,209 @@ export function ExtraIncomeForm({ initial, trigger }: { initial?: ExtraIncome; t
 
 // --- Piggy bucket ---
 
-export function BucketForm({ initial, trigger }: { initial?: PiggyBucket; trigger?: React.ReactNode }) {
-  const [perpetual, setPerpetual] = useState(initial ? initial.targetCents === null : false);
+// Positive amounts only: the kind decides the sign. Switching the slider swaps
+// the labels and hints so each field says what it means for that kind.
+const BUCKET_KINDS = {
+  SPREAD: {
+    label: "Spread a purchase",
+    total: {
+      label: "Purchase total ($)",
+      hint: "What you paid. The progress bar is measured against this.",
+    },
+    balance: {
+      label: "Still held ($)",
+      hint: "Left to release back into your budget. Blank = the full total.",
+    },
+    perDay: {
+      label: "Release per day ($)",
+      hint: "Given back to your daily budget each day until it reaches 0.",
+    },
+  },
+  SAVE: {
+    label: "Save up",
+    total: {
+      label: "Goal ($)",
+      hint: "Blank = no goal; keeps saving forever.",
+    },
+    balance: { label: "Saved so far ($)", hint: "Already set aside." },
+    perDay: {
+      label: "Save per day ($)",
+      hint: "Taken out of your daily budget each day.",
+    },
+  },
+} as const;
+
+function KindSlider({
+  value,
+  onChange,
+}: {
+  value: "SPREAD" | "SAVE";
+  onChange: (k: "SPREAD" | "SAVE") => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Bucket type"
+      className="relative grid grid-cols-2 rounded-lg border border-line-2 bg-bg p-0.5"
+    >
+      <span
+        aria-hidden
+        className={`absolute inset-y-0.5 w-[calc(50%-2px)] rounded-md bg-gradient-to-br from-forest to-lime transition-transform duration-200 ${
+          value === "SAVE" ? "translate-x-[calc(100%+4px)]" : "translate-x-0"
+        }`}
+      />
+      {(["SPREAD", "SAVE"] as const).map((k) => (
+        <button
+          key={k}
+          type="button"
+          role="radio"
+          aria-checked={value === k}
+          onClick={() => onChange(k)}
+          className={`relative z-10 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            value === k ? "text-[#08130a]" : "text-ink-2 hover:text-ink"
+          }`}
+        >
+          {BUCKET_KINDS[k].label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Flipping the slider keeps the bucket's progress and daily amount: the total
+// and goal are the same number, and "released so far" (total - held) is
+// "saved so far". The budget impact does change (see the note in the form).
+function convertBucketAmounts(
+  to: "SPREAD" | "SAVE",
+  total: string,
+  balance: string,
+): { total: string; balance: string } {
+  const t = parseDollarsToCents(total);
+  const b = parseDollarsToCents(balance);
+  // no total/goal to carry over: nothing meaningful to compute
+  if (t === null) return { total, balance: "" };
+  // SAVE -> SPREAD: held = goal - saved.  SPREAD -> SAVE: saved = total - held
+  // (blank held on a spread means the full total is held, so nothing saved yet)
+  const other = to === "SPREAD" ? t - (b ?? 0) : t - (b ?? t);
+  return { total, balance: dollars(Math.max(0, other)) };
+}
+
+// Lives inside the modal so its state is rebuilt from the bucket each time the
+// form opens (steppers may have moved the balance since it was last shown).
+function BucketFields({ initial }: { initial?: PiggyBucket }) {
+  const [kind, setKind] = useState<"SPREAD" | "SAVE">(
+    initial?.kind === "SAVE" ? "SAVE" : "SPREAD",
+  );
+  // edit forms show today's balance, since saving re-anchors the bucket to today
+  const [amounts, setAmounts] = useState(() => {
+    if (!initial) return { total: "", balance: "", perDay: "" };
+    const total =
+      initial.kind === "SAVE"
+        ? initial.targetCents === null
+          ? null
+          : Math.abs(initial.targetCents)
+        : initial.totalCents;
+    return {
+      total: dollars(total),
+      balance: dollars(Math.abs(bucketValueOn(initial, todayIso()))),
+      perDay: dollars(Math.abs(initial.ratePerDayCents)),
+    };
+  });
+  const t = BUCKET_KINDS[kind];
+
+  function switchKind(next: "SPREAD" | "SAVE") {
+    if (next === kind) return;
+    setKind(next);
+    setAmounts((a) => ({
+      ...a,
+      ...convertBucketAmounts(next, a.total, a.balance),
+    }));
+  }
+
+  const totalCents = parseDollarsToCents(amounts.total);
+  const balanceCents = parseDollarsToCents(amounts.balance);
+  const impactCents =
+    kind === "SPREAD" ? (balanceCents ?? totalCents) : balanceCents;
+  return (
+    <>
+      {initial && <input type="hidden" name="id" value={initial.id} />}
+      <input type="hidden" name="kind" value={kind} />
+      <KindSlider value={kind} onChange={switchKind} />
+      <Field label="Name">
+        <input
+          name="name"
+          required
+          defaultValue={initial?.name}
+          className="input"
+        />
+      </Field>
+      <Field label="Started" hint="The day you actually began this one.">
+        <input
+          name="startedOn"
+          type="date"
+          required
+          defaultValue={
+            initial ? (initial.startedOn ?? initial.startDate) : todayIso()
+          }
+          className="input"
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t.total.label} hint={t.total.hint}>
+          <input
+            name="total"
+            required={kind === "SPREAD"}
+            value={amounts.total}
+            onChange={(e) => setAmounts({ ...amounts, total: e.target.value })}
+            className="input"
+            inputMode="decimal"
+          />
+        </Field>
+        <Field label={t.balance.label} hint={t.balance.hint}>
+          <input
+            name="balance"
+            value={amounts.balance}
+            onChange={(e) =>
+              setAmounts({ ...amounts, balance: e.target.value })
+            }
+            placeholder={kind === "SAVE" ? "0.00" : undefined}
+            className="input"
+            inputMode="decimal"
+          />
+        </Field>
+      </div>
+      <Field label={t.perDay.label} hint={t.perDay.hint}>
+        <input
+          name="perDay"
+          required
+          value={amounts.perDay}
+          onChange={(e) => setAmounts({ ...amounts, perDay: e.target.value })}
+          className="input"
+          inputMode="decimal"
+          placeholder="1.00"
+        />
+      </Field>
+      {impactCents !== null && impactCents > 0 && (
+        <p className="text-[11px] leading-snug text-ink-3">
+          Today this {kind === "SPREAD" ? "adds" : "takes"}{" "}
+          <span className={kind === "SPREAD" ? "text-pos" : "text-neg"}>
+            ${(impactCents / 100).toFixed(2)}
+          </span>{" "}
+          {kind === "SPREAD" ? "back to" : "out of"} your budget. Switching type
+          keeps the progress and daily amount, but changes this.
+        </p>
+      )}
+    </>
+  );
+}
+
+export function BucketForm({
+  initial,
+  trigger,
+}: {
+  initial?: PiggyBucket;
+  trigger?: React.ReactNode;
+}) {
   return (
     <FormShell
       title={initial ? "Edit Bucket" : "Add Bucket"}
@@ -536,39 +738,7 @@ export function BucketForm({ initial, trigger }: { initial?: PiggyBucket; trigge
       trigger={trigger}
       action={saveBucket}
     >
-      {() => (
-        <>
-          {initial && <input type="hidden" name="id" value={initial.id} />}
-          <Field label="Name">
-            <input name="name" required defaultValue={initial?.name} className="input" />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Start date">
-              <input name="startDate" type="date" required defaultValue={initial?.startDate} className="input" />
-            </Field>
-            <Field label="Daily change ($)" hint="Applied every day. Usually negative.">
-              <input name="ratePerDay" required defaultValue={dollars(initial?.ratePerDayCents)} className="input" inputMode="decimal" placeholder="-1.00" />
-            </Field>
-          </div>
-          <Field
-            label="Starting value ($)"
-            hint="Positive = money granted back to the budget (spreads a purchase over time). Negative = money siphoned aside into a fund."
-          >
-            <input name="principal" required defaultValue={dollars(initial?.principalCents)} className="input" inputMode="decimal" />
-          </Field>
-          <CheckField label="Perpetual (no end value — runs forever)" name="perpetual" defaultChecked={perpetual} onChange={setPerpetual} />
-          {!perpetual && (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="End value ($)" hint="Bucket stops here. Usually 0.">
-                <input name="target" defaultValue={initial ? dollars(initial.targetCents ?? 0) : "0.00"} className="input" inputMode="decimal" />
-              </Field>
-              <Field label="Original amount ($)" hint="Optional — full amount, for the progress bar.">
-                <input name="original" defaultValue={dollars(initial?.originalCents)} className="input" inputMode="decimal" />
-              </Field>
-            </div>
-          )}
-        </>
-      )}
+      {() => <BucketFields initial={initial} />}
     </FormShell>
   );
 }

@@ -108,17 +108,19 @@ async function main() {
     ],
   });
 
-  // Piggy buckets copied from the Numbers sheet (principal = Offset, original = Start).
+  // Piggy buckets copied from the Numbers sheet. startDate is the sheet's
+  // anchor for the line; startedOn is the real start.
+  const SAVE = "SAVE", SPREAD = "SPREAD";
   await prisma.piggyBucket.createMany({
     data: [
-      { name: "Clothes", startDate: "2026-03-21", principalCents: -14_000, ratePerDayCents: -100, targetCents: null },
-      { name: "Gifts", startDate: "2026-03-21", principalCents: -19_000, ratePerDayCents: -100, targetCents: null },
-      { name: "Apple Developer", startDate: "2026-02-22", principalCents: -9_900, ratePerDayCents: 0, targetCents: -9_900 },
-      { name: "Sunglasses", startDate: "2026-04-28", principalCents: -26_700, ratePerDayCents: 0, targetCents: -26_700 },
-      { name: "Lightning Lane", startDate: "2026-07-20", principalCents: 36_500, ratePerDayCents: -700, targetCents: 0, originalCents: 42_494 },
-      { name: "Tabby", startDate: "2026-07-23", principalCents: 28_500, ratePerDayCents: -500, targetCents: 0, originalCents: 28_500 },
-      { name: "Ring", startDate: "2026-06-23", principalCents: 189_000, ratePerDayCents: -1_400, targetCents: 0, originalCents: 319_000 },
-      { name: "Cruise", startDate: "2026-08-01", principalCents: 50_000, ratePerDayCents: -500, targetCents: 0, originalCents: 94_500 },
+      { name: "Clothes", kind: SAVE, startedOn: "2026-03-21", startDate: "2026-03-21", principalCents: -14_000, ratePerDayCents: -100, targetCents: null },
+      { name: "Gifts", kind: SAVE, startedOn: "2026-03-21", startDate: "2026-03-21", principalCents: -19_000, ratePerDayCents: -100, targetCents: null },
+      { name: "Apple Developer", kind: SAVE, startedOn: "2026-02-22", startDate: "2026-02-22", principalCents: -9_900, ratePerDayCents: 0, targetCents: -9_900 },
+      { name: "Sunglasses", kind: SAVE, startedOn: "2026-04-28", startDate: "2026-04-28", principalCents: -26_700, ratePerDayCents: 0, targetCents: -26_700 },
+      { name: "Lightning Lane", kind: SPREAD, startedOn: "2026-07-20", startDate: "2026-07-20", principalCents: 36_500, ratePerDayCents: -700, targetCents: 0, totalCents: 42_494 },
+      { name: "Tabby", kind: SPREAD, startedOn: "2026-07-23", startDate: "2026-07-23", principalCents: 28_500, ratePerDayCents: -500, targetCents: 0, totalCents: 28_500 },
+      { name: "Ring", kind: SPREAD, startedOn: "2026-06-23", startDate: "2026-06-23", principalCents: 189_000, ratePerDayCents: -1_400, targetCents: 0, totalCents: 319_000 },
+      { name: "Cruise", kind: SPREAD, startedOn: "2026-08-01", startDate: "2026-08-01", principalCents: 50_000, ratePerDayCents: -500, targetCents: 0, totalCents: 94_500 },
     ],
   });
 

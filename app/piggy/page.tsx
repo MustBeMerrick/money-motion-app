@@ -28,12 +28,16 @@ export default async function PiggyPage() {
         />
 
         <section className="card mb-4 text-sm text-ink-2">
-          <span className="font-semibold text-ink">How it works: </span>
-          a bucket with a <span className="text-pos">positive value</span>{" "}
-          is money you granted back to the budget — it spreads a big purchase forward, shrinking daily
-          until it hits its end value. A <span className="text-neg">negative value</span>{" "}
-          is money siphoned aside each day into a fund (clothes, gifts…). The sum of all buckets
-          adjusts today&apos;s available money.
+          <div className="font-semibold text-ink">How it works</div>
+          <p className="mt-1">
+            <span className="text-pos">Spread a purchase</span> is a loan against yourself, repaid
+            from your cash inflow a little each day until it hits 0.
+          </p>
+          <p className="mt-1">
+            <span className="text-neg">Save up</span> sets money aside each day toward a goal (clothes,
+            gifts…).
+          </p>
+          <p className="mt-1">The sum of all buckets adjusts today&apos;s available money.</p>
         </section>
 
         <ActiveBucketsTable buckets={active} today={today} />

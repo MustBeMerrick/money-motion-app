@@ -242,51 +242,51 @@ export async function reorderExtraIncome(orderedIds: string[]) {
 const bucketSchema = z.object({
   id: z.string().optional(),
   name: z.string().trim().min(1),
-  startDate: isoDate,
-  principal: cents,
-  ratePerDay: cents,
-  target: optionalCents,
-  original: optionalCents,
-  perpetual: checkbox,
+  kind: z.enum(["SPREAD", "SAVE"]),
+  startedOn: isoDate,
+  // SPREAD: purchase price and what is still held; SAVE: goal and saved so far
+  total: optionalCents,
+  balance: optionalCents,
+  perDay: optionalCents,
 });
 
+// The form speaks in positive amounts for whichever kind is selected; the
+// signs (and the always-0 end of a spread) are stored here. The anchor is
+// reset to today with today's balance, so it never drifts from what was typed.
 export async function saveBucket(formData: FormData) {
   await actionLatency();
   const f = bucketSchema.parse(fields(formData));
-  let principalCents = f.principal;
+  const perDay = Math.abs(f.perDay ?? 0);
+  const balance = Math.abs(f.balance ?? 0);
+  const total = f.total === null ? null : Math.abs(f.total);
 
-  // Changing just the rate pivots the amortization line around its
-  // start-date anchor, which silently shifts today's current value — the
-  // spreadsheet issue this mirrors. If the rate is the only thing that
-  // changed (principal/start date left as submitted), re-anchor the
-  // principal so today's value holds steady and only the future slope moves.
-  if (f.id) {
-    const existing = await prisma.piggyBucket.findUnique({ where: { id: f.id } });
-    if (
-      existing &&
-      f.ratePerDay !== existing.ratePerDayCents &&
-      f.principal === existing.principalCents &&
-      f.startDate === existing.startDate
-    ) {
-      const today = todayIso();
-      const todayValue = bucketValueOn(existing, today);
-      const days = Math.max(0, daysBetween(existing.startDate, today));
-      principalCents = todayValue - f.ratePerDay * days;
-    }
+  let data;
+  if (f.kind === "SPREAD") {
+    if (total === null) throw new Error("Purchase total is required");
+    data = {
+      principalCents: f.balance === null ? total : balance,
+      targetCents: 0,
+      totalCents: total,
+    };
+  } else {
+    data = {
+      principalCents: -balance,
+      targetCents: total === null || total === 0 ? null : -total,
+      totalCents: null,
+    };
   }
-
-  const data = {
+  const row = {
     name: f.name,
-    startDate: f.startDate,
-    principalCents,
-    ratePerDayCents: f.ratePerDay,
-    targetCents: f.perpetual ? null : (f.target ?? 0),
-    originalCents: f.original,
+    kind: f.kind,
+    startedOn: f.startedOn,
+    startDate: todayIso(),
+    ratePerDayCents: -perDay,
+    ...data,
   };
   if (f.id) {
-    await prisma.piggyBucket.update({ where: { id: f.id }, data });
+    await prisma.piggyBucket.update({ where: { id: f.id }, data: row });
   } else {
-    await prisma.piggyBucket.create({ data });
+    await prisma.piggyBucket.create({ data: row });
   }
 }
 
@@ -309,7 +309,7 @@ export async function adjustBucketRate(id: string, deltaCents: number) {
   const existing = await prisma.piggyBucket.findUniqueOrThrow({ where: { id } });
   const today = todayIso();
   const days = Math.max(0, daysBetween(existing.startDate, today));
-  const ratePerDayCents = existing.ratePerDayCents + deltaCents;
+  const ratePerDayCents = Math.min(0, existing.ratePerDayCents + deltaCents);
   await prisma.piggyBucket.update({
     where: { id },
     data: {
