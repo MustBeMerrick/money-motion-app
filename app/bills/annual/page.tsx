@@ -16,6 +16,7 @@ export default async function AnnualBillsPage() {
         bills={bills}
         month={month}
         frequency="YEARLY"
+        soloFirst
         note="Charged once a year on their due date."
       />
     </>

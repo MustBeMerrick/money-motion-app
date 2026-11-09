@@ -16,6 +16,7 @@ export default async function WeeklyBillsPage() {
         bills={bills}
         month={month}
         frequency="WEEKLY"
+        soloFirst
         note={`Amounts are per week. Each chip is one charge in ${monthLabel(month)} — tick them off as they land, or click the count to do all at once. Totals are the full monthly cost.`}
       />
     </>

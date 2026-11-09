@@ -18,7 +18,7 @@ import { useSelectedDate } from "@/lib/selected-date-context";
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/bills", label: "Bills & Recurring", icon: ReceiptText },
+  { href: "/bills", label: "Bills", icon: ReceiptText },
   { href: "/piggy", label: "Piggy Bank", icon: PiggyBank },
   { href: "/accounts", label: "Accounts", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },

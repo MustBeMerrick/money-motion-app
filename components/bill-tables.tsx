@@ -428,32 +428,47 @@ export function SoloBillTable({
   );
 }
 
-/** The shared / non-shared pair, as used by each frequency subpage. */
+/**
+ * The shared / non-shared pair, as used by each frequency subpage. `soloFirst`
+ * swaps their order (and the column widths along with them).
+ */
 export function BillBoards({
   bills,
   month,
   frequency,
   note,
+  soloFirst = false,
 }: {
   bills: BillWithStatus[];
   month: IsoMonth;
   frequency: BillFrequency;
   note?: string;
+  soloFirst?: boolean;
 }) {
   const shared = bills.filter((b) => b.shared);
   const solo = bills.filter((b) => !b.shared);
+  const sharedCard = (
+    <section className="card">
+      <h2 className="card-title">Shared</h2>
+      <SharedBillTable bills={shared} month={month} frequency={frequency} />
+    </section>
+  );
+  const soloCard = (
+    <section className="card">
+      <h2 className="card-title">Non-Shared</h2>
+      <SoloBillTable bills={solo} month={month} frequency={frequency} />
+    </section>
+  );
   return (
     <>
       {note && <p className="mb-4 text-xs text-ink-3">{note}</p>}
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[830px_540px]">
-        <section className="card">
-          <h2 className="card-title">Shared</h2>
-          <SharedBillTable bills={shared} month={month} frequency={frequency} />
-        </section>
-        <section className="card">
-          <h2 className="card-title">Non-Shared</h2>
-          <SoloBillTable bills={solo} month={month} frequency={frequency} />
-        </section>
+      <div
+        className={`grid grid-cols-1 items-start gap-4 ${
+          soloFirst ? "xl:grid-cols-[540px_830px]" : "xl:grid-cols-[830px_540px]"
+        }`}
+      >
+        {soloFirst ? soloCard : sharedCard}
+        {soloFirst ? sharedCard : soloCard}
       </div>
     </>
   );

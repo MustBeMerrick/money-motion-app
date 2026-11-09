@@ -20,7 +20,7 @@ export function BillsNav({ subtitle }: { subtitle: string }) {
     <div className="mb-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Bills &amp; Recurring</h1>
+          <h1 className="text-2xl font-bold">Bills</h1>
           <p className="mt-0.5 text-sm text-ink-2">{subtitle}</p>
         </div>
         {/* key: BillsNav survives tab navigation, so without a remount the
