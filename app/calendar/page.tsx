@@ -165,6 +165,10 @@ export default async function CalendarPage({
     }
   }
 
+  // reimbursements only ever offset that day's expenses -- a surplus doesn't
+  // flip the day into a negative expense, it just shows nothing
+  for (const totals of Object.values(dayTotals)) totals.expenseCents = Math.max(0, totals.expenseCents);
+
   // phones get the same month grid but with names moved out of the cells
   // into a tap-to-open day list, since a ~50px cell truncates every name
   const mobileBillCharges: Record<number, MobileBillCharge[]> = {};
