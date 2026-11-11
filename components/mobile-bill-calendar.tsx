@@ -107,7 +107,7 @@ export function MobileBillCalendar({
                 key={i}
                 type="button"
                 onClick={() => select(day)}
-                className={`flex h-14 cursor-pointer flex-col items-center gap-0.5 pt-1.5 ${
+                className={`flex h-14 cursor-pointer flex-col items-center justify-start gap-0.5 pt-1.5${
                   isToday ? "bg-forest/20" : ""
                 }`}
               >
