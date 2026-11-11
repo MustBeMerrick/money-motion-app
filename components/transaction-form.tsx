@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Plus, X } from "lucide-react";
+import { Check, ChevronDown, Delete, Plus, X } from "lucide-react";
 import type { Account, Payee, TransactionType } from "@prisma/client";
 import { getTransactionFormOptions, saveTransaction } from "@/app/actions";
 import { evaluateArithmetic } from "@/lib/core/arithmetic";
@@ -350,6 +350,74 @@ function CategorySelect({
   );
 }
 
+const OPERATORS = "+-*/";
+
+type PadKey = { label: React.ReactNode; press: string; span?: boolean; muted?: boolean; accent?: boolean };
+
+// Layout: C and the operators on top, digits in the middle with a tall "+"
+// beside them, and a tall confirm key beside the bottom two digit rows.
+// Source order matters -- the grid auto-places around the two row-span cells.
+const PAD_KEYS: PadKey[] = [
+  { label: "C", press: "clear", muted: true },
+  { label: "÷", press: "/", muted: true },
+  { label: "×", press: "*", muted: true },
+  { label: "−", press: "-", muted: true },
+  { label: "1", press: "1" },
+  { label: "2", press: "2" },
+  { label: "3", press: "3" },
+  { label: "+", press: "+", span: true, muted: true },
+  { label: "4", press: "4" },
+  { label: "5", press: "5" },
+  { label: "6", press: "6" },
+  { label: "7", press: "7" },
+  { label: "8", press: "8" },
+  { label: "9", press: "9" },
+  { label: <Check size={26} strokeWidth={2.5} />, press: "confirm", span: true, accent: true },
+  { label: "·", press: "." },
+  { label: "0", press: "0" },
+  { label: <Delete size={22} />, press: "back" },
+];
+
+// Clearance under the bottom row so it doesn't sit in the home-indicator area.
+const PAD_LIFT = "2rem";
+// 5 rows of h-14 plus seams, then the lift and the device's own inset.
+const PAD_HEIGHT = `calc(17.5rem + 5px + ${PAD_LIFT} + env(safe-area-inset-bottom))`;
+
+// In-app calculator pad for the amount field on phones. Taps are handled on
+// pointerdown with default prevented so the amount input keeps focus (and the
+// pad stays up) the whole time.
+function NumPad({ onPress }: { onPress: (key: string) => void }) {
+  return createPortal(
+    <div
+      className="fixed inset-x-0 bottom-0 z-[70] grid touch-none grid-cols-4 gap-px border-t border-line-2 bg-line-2 select-none"
+      style={{ paddingBottom: `calc(${PAD_LIFT} + env(safe-area-inset-bottom))` }}
+      onPointerDown={(e) => e.preventDefault()}
+    >
+      {PAD_KEYS.map((k) => (
+        <button
+          key={k.press}
+          type="button"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            onPress(k.press);
+          }}
+          aria-label={k.press === "confirm" ? "Confirm" : k.press === "back" ? "Backspace" : undefined}
+          className={`flex h-14 items-center justify-center text-2xl font-semibold ${
+            k.span ? "row-span-2 h-auto" : ""
+          } ${
+            k.accent
+              ? "bg-gradient-to-b from-forest to-lime text-[#08130a] active:opacity-90"
+              : `bg-surface active:bg-surface-2 ${k.muted ? "text-ink-2" : "text-ink"}`
+          }`}
+        >
+          {k.label}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 export function TransactionModal({
   onClose,
   options,
@@ -377,6 +445,9 @@ export function TransactionModal({
   const [memo, setMemo] = useState(editing?.memo ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const [padOpen, setPadOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const payeeInputRef = useRef<HTMLInputElement>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
 
@@ -395,6 +466,50 @@ export function TransactionModal({
     const el = e.currentTarget;
     setTimeout(() => el.setSelectionRange(0, 0), 0);
   }
+  // Phones get the in-app pad instead of the system keyboard. The first key
+  // replaces the old amount like a calculator (an operator instead extends
+  // it); after that keys append.
+  function pressPad(key: string) {
+    if (key === "confirm") {
+      // with an operation pending, ✓ resolves it first; otherwise it saves
+      if (/(?!^)[+\-*/]/.test(amountRaw)) {
+        const result = evaluateArithmetic(amountRaw);
+        if (result !== null) setAmountRaw(Math.abs(result).toFixed(2).replace(/\.00$/, ""));
+        amountFresh.current = true;
+      } else {
+        setPadOpen(false);
+        formRef.current?.requestSubmit();
+      }
+      return;
+    }
+    const wasFresh = amountFresh.current;
+    amountFresh.current = false;
+    if (key === "clear") return setAmountRaw("");
+    if (key === "back") return setAmountRaw((v) => v.slice(0, -1));
+    setAmountRaw((current) => {
+      const isOp = OPERATORS.includes(key);
+      const base = wasFresh && !isOp ? "" : current;
+      if (isOp) {
+        if (base === "") return key === "-" ? "-" : base;
+        // a second operator replaces the first instead of stacking
+        if (OPERATORS.includes(base.slice(-1))) return base.length > 1 ? base.slice(0, -1) + key : base;
+        return base + key;
+      }
+      // one decimal point per number
+      if (key === "." && base.split(/[+\-*/]/).pop()!.includes(".")) return base;
+      return base + key;
+    });
+  }
+
+  const amountProps = {
+    inputMode: isDesktop ? ("decimal" as const) : ("none" as const),
+    onFocus: () => {
+      armAmountFresh();
+      if (!isDesktop) setPadOpen(true);
+    },
+    onBlur: () => setPadOpen(false),
+  };
+
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
     const next = e.target.value;
     if (amountFresh.current) {
@@ -452,8 +567,6 @@ export function TransactionModal({
           .filter((p) => !p.category || categoryTreeKeys.includes(p.category as CategoryKey))
           .slice(0, 3)
       : [];
-  const [isDesktop, setIsDesktop] = useState(false);
-
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
     const update = () => setIsDesktop(mq.matches);
@@ -565,6 +678,8 @@ export function TransactionModal({
           // alone (always from .card) and only swapping the image keeps the
           // surface opaque throughout the transition.
           backgroundImage: modalBackground ?? "none",
+          // room to scroll the memo / Save clear of the pad
+          ...(padOpen ? { paddingBottom: PAD_HEIGHT } : {}),
         }}
       >
         <div className="-mx-5 -mt-5 mb-3 flex justify-center pt-2 lg:hidden">
@@ -617,7 +732,7 @@ export function TransactionModal({
           </button>
         </div>
 
-        <form onSubmit={submit} className="flex flex-col gap-3.5">
+        <form ref={formRef} onSubmit={submit} className="flex flex-col gap-3.5">
           {type !== "TRANSFER" && (
             // items-start, not items-center: the category select adds a
             // second row under Payee, and centering against that whole
@@ -667,13 +782,12 @@ export function TransactionModal({
                 ref={amountInputRef}
                 value={amountRaw}
                 onChange={handleAmountChange}
-                onFocus={armAmountFresh}
+                {...amountProps}
                 onClick={(e) => {
                   armAmountFresh();
                   snapAmountCursor(e);
                 }}
                 placeholder="0.00"
-                inputMode="decimal"
                 className="input w-28 text-right text-lg font-semibold"
               />
             </div>
@@ -687,13 +801,12 @@ export function TransactionModal({
               <input
                 value={amountRaw}
                 onChange={handleAmountChange}
-                onFocus={armAmountFresh}
+                {...amountProps}
                 onClick={(e) => {
                   armAmountFresh();
                   snapAmountCursor(e);
                 }}
                 placeholder="0.00"
-                inputMode="decimal"
                 className="input ml-auto w-28 text-right text-lg font-semibold"
               />
             </div>
@@ -779,6 +892,7 @@ export function TransactionModal({
           )}
         </form>
       </div>
+      {padOpen && <NumPad onPress={pressPad} />}
     </div>,
     document.body,
   );
