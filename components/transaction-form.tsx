@@ -386,12 +386,15 @@ const PAD_HEIGHT = `calc(17.5rem + 5px + ${PAD_LIFT} + env(safe-area-inset-botto
 // In-app calculator pad for the amount field on phones. Taps are handled on
 // pointerdown with default prevented so the amount input keeps focus (and the
 // pad stays up) the whole time.
-function NumPad({ onPress }: { onPress: (key: string) => void }) {
+function NumPad({ onPress, onTouch }: { onPress: (key: string) => void; onTouch: () => void }) {
   return createPortal(
     <div
       className="fixed inset-x-0 bottom-0 z-[70] grid touch-none grid-cols-4 gap-px border-t border-line-2 bg-line-2 select-none"
       style={{ paddingBottom: `calc(${PAD_LIFT} + env(safe-area-inset-bottom))` }}
-      onPointerDown={(e) => e.preventDefault()}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        onTouch();
+      }}
     >
       {PAD_KEYS.map((k) => (
         <button
@@ -470,11 +473,12 @@ export function TransactionModal({
   // replaces the old amount like a calculator (an operator instead extends
   // it); after that keys append.
   function pressPad(key: string) {
+    touchPad();
     if (key === "confirm") {
       // with an operation pending, ✓ resolves it first; otherwise it saves
       if (/(?!^)[+\-*/]/.test(amountRaw)) {
         const result = evaluateArithmetic(amountRaw);
-        if (result !== null) setAmountRaw(Math.abs(result).toFixed(2).replace(/\.00$/, ""));
+        if (result !== null) setAmountRaw(result.toFixed(2).replace(/\.00$/, ""));
         amountFresh.current = true;
       } else {
         setPadOpen(false);
@@ -501,13 +505,33 @@ export function TransactionModal({
     });
   }
 
+  // Rapid taps can still cost the input its focus on iOS (a quick repeat tap
+  // is read as a double-tap and the browser moves focus despite the prevented
+  // pointerdown), and the blur used to close the pad. So a blur right after
+  // touching the pad is treated as that glitch: take focus back instead of
+  // closing. Only a blur with no recent pad touch (tapping the memo, Save,
+  // payee...) dismisses it.
+  const lastPadTouch = useRef(0);
+  function touchPad() {
+    lastPadTouch.current = Date.now();
+    const input = amountInputRef.current;
+    if (input && document.activeElement !== input) input.focus({ preventScroll: true });
+  }
+
   const amountProps = {
     inputMode: isDesktop ? ("decimal" as const) : ("none" as const),
     onFocus: () => {
-      armAmountFresh();
+      // a refocus mid-typing must not re-arm "next key replaces the amount"
+      if (Date.now() - lastPadTouch.current >= 500) armAmountFresh();
       if (!isDesktop) setPadOpen(true);
     },
-    onBlur: () => setPadOpen(false),
+    onBlur: () => {
+      if (Date.now() - lastPadTouch.current < 500) {
+        amountInputRef.current?.focus({ preventScroll: true });
+        return;
+      }
+      setPadOpen(false);
+    },
   };
 
   function handleAmountChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -799,6 +823,7 @@ export function TransactionModal({
                 🔁
               </span>
               <input
+                ref={amountInputRef}
                 value={amountRaw}
                 onChange={handleAmountChange}
                 {...amountProps}
@@ -892,7 +917,7 @@ export function TransactionModal({
           )}
         </form>
       </div>
-      {padOpen && <NumPad onPress={pressPad} />}
+      {padOpen && <NumPad onPress={pressPad} onTouch={touchPad} />}
     </div>,
     document.body,
   );
