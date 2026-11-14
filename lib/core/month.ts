@@ -170,14 +170,14 @@ export function billMonthlyOutOfPocketCents(
 
 // What's still going to come out of a single account (matched by the caller,
 // e.g. by color against Checking) before some date — the full charge for
-// every unhit occurrence due on or before that date, reimbursement aside: the
-// whole amount actually leaves the account on the due date regardless of
-// when a shared bill's other party pays you back. "On or before" because
-// Rent is due on the last day of the month, which is also the month-end
-// payday: it is paid out of that paycheck, so it must count against the
-// balance the paycheck is about to top up.
+// every unhit occurrence due strictly before that date, reimbursement aside:
+// the whole amount actually leaves the account on the due date regardless of
+// when a shared bill's other party pays you back. Strictly "before" because
+// bills due on the payday itself (e.g. Rent on the month-end payday) are
+// covered by that day's incoming paycheck, so they don't count against the
+// balance.
 export function billsDueBeforeCents(bills: BillInput[], before: IsoDate): number {
-  const dueBefore = (o: OccurrenceStatus) => !o.hit && o.date <= before;
+  const dueBefore = (o: OccurrenceStatus) => !o.hit && o.date < before;
   return bills.reduce(
     (sum, b) => sum + b.amountCents * b.occurrences.filter(dueBefore).length,
     0,
