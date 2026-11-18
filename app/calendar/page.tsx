@@ -18,6 +18,7 @@ import { CalendarViewToggle } from "@/components/calendar-view-toggle";
 import { ExpenseDayCalendar, type DayTotals } from "@/components/expense-day-calendar";
 import type { LedgerRow } from "@/components/transaction-list";
 import { categoryEmoji, categoryLabel } from "@/lib/core/categories";
+import { dayExpenseCents } from "@/lib/core/day-totals";
 
 export const dynamic = "force-dynamic";
 
@@ -134,7 +135,6 @@ export default async function CalendarPage({
       if (!isTransfer) {
         const totals = dayTotals[day] ?? { expenseCents: 0, incomeCents: 0 };
         if (t.type === "INCOME") totals.incomeCents += t.amountCents;
-        else totals.expenseCents += t.reimbursement ? -t.amountCents : t.amountCents;
         dayTotals[day] = totals;
       }
 
@@ -165,9 +165,11 @@ export default async function CalendarPage({
     }
   }
 
-  // reimbursements only ever offset that day's expenses -- a surplus doesn't
-  // flip the day into a negative expense, it just shows nothing
-  for (const totals of Object.values(dayTotals)) totals.expenseCents = Math.max(0, totals.expenseCents);
+  // reimbursements offset only the same-payee expense they pay back (see
+  // dayExpenseCents) -- a surplus shows nothing rather than a negative expense
+  for (const [day, totals] of Object.entries(dayTotals)) {
+    totals.expenseCents = dayExpenseCents((rawByDay.get(Number(day)) ?? []).filter((t) => t.type === "EXPENSE"));
+  }
 
   // phones get the same month grid but with names moved out of the cells
   // into a tap-to-open day list, since a ~50px cell truncates every name
